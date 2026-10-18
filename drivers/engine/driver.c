@@ -21,6 +21,11 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Proprietary A-field bytes of IZAR/PRIOS can fail regular MVT matching.
+ * Probe only SAP/HYD/DME candidate frames using their public decoder. */
+extern const WmbusDriver wmbus_drv_diehl_izar;
+extern bool wmbus_izar_probe(const WmbusDecodeCtx* ctx);
+
 static bool mvt_matches(const WmbusMVT* m,
                         const char* code, uint8_t v, uint8_t med) {
     if(memcmp(m->manuf, code, 3) != 0) return false;
@@ -69,6 +74,11 @@ const WmbusDriver* wmbus_engine_find(
     return d ? d : &k_unknown_driver;
 }
 
+const WmbusDriver* wmbus_engine_find_ctx(const WmbusDecodeCtx* ctx) {
+    if(wmbus_izar_probe(ctx)) return &wmbus_drv_diehl_izar;
+    return wmbus_engine_find(ctx->manuf, ctx->version, ctx->medium);
+}
+
 size_t wmbus_engine_decode(
     uint16_t manuf, uint8_t version, uint8_t medium,
     const uint8_t* apdu, size_t apdu_len,
@@ -86,7 +96,7 @@ size_t wmbus_engine_decode(
 
 size_t wmbus_engine_decode_ctx(const WmbusDecodeCtx* ctx,
                                char* out, size_t cap) {
-    const WmbusDriver* d = wmbus_engine_find(ctx->manuf, ctx->version, ctx->medium);
+    const WmbusDriver* d = wmbus_engine_find_ctx(ctx);
     if(d->decode_ex) {
         return d->decode_ex(ctx, out, cap);
     }
