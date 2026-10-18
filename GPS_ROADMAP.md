@@ -1,6 +1,8 @@
-# GPS integration (future work)
+# GPS integration
 
-This feature is intentionally **not implemented** in the current branch.
+The first UART GNSS integration is implemented on the `feat/gps-session-and-driver-audit` branch. See [GPS.md](GPS.md) for wiring, settings, log schema and test procedure.
+
+## Improvements for later iterations
 
 - External UART GNSS receiver; avoid blocking the Sub-GHz receive worker.
 - Record receive-time UTC (when available), coordinates, fix validity and fix age.
