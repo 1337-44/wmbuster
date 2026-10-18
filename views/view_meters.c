@@ -20,6 +20,7 @@ typedef struct {
     uint32_t id;
     uint8_t  version;
     uint8_t  medium;
+    bool     is_izar;
     int8_t   rssi;
     bool     encrypted;
     bool     have_key;
@@ -43,6 +44,7 @@ static bool snapshot(WmbusApp* app, MeterRow* snap, size_t* total_out,
         snap[i].id      = m->id;
         snap[i].version = m->version;
         snap[i].medium  = m->medium;
+        snap[i].is_izar = m->is_izar;
         snap[i].rssi    = m->rssi;
         snap[i].encrypted = m->encrypted;
         snap[i].have_key = m->have_key;
@@ -148,7 +150,8 @@ static void format_head(const MeterRow* r, char* head, size_t cap) {
     /* Last four hex digits of the ID — short and unique enough on a single
      * RF site, while leaving plenty of room for the value column. */
     unsigned tail = (unsigned)(r->id & 0xFFFFu);
-    snprintf(head, cap, "%s %s %04X", m, medium_short(r->medium), tail);
+    snprintf(head, cap, "%s %s %04X", m,
+             r->is_izar ? "IZAR" : medium_short(r->medium), tail);
 }
 
 /* ---- Header / footer label helpers ---- */
