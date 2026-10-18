@@ -1,10 +1,9 @@
 # Techem
 
-Techem ships compact-frame telegrams that are **not** OMS-conformant —
-the body uses fixed offsets and a Techem-private date packing. All
-custom decoders live in `_compact.{h,c}`; each driver file in this
-folder is a thin descriptor that wires an `(M,V,T)` list to the
-right decoder.
+Many Techem devices ship non-OMS compact frames with fixed offsets and
+Techem-private date packing. Those use the decoders in `_compact.{h,c}`.
+MK-Radio4a, however, uses an OMS payload and is routed to the OMS
+decoder rather than the MK-Radio4 fixed-offset decoder.
 
 ## Sources
 
