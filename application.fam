@@ -13,6 +13,7 @@ App(
     fap_description="EU wM-Bus listener: T1/C1/T+C/S1, AES-128 mode 5, OMS DIF/VIF, manufacturer drivers. RX-only.",
     sources=[
         "wmbus_app.c",
+        "settings_store.c",
         "logger.c",
         "meters_db.c",
         "key_store.c",

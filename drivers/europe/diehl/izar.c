@@ -318,19 +318,16 @@ static size_t decode_izar_ex(const WmbusDecodeCtx* ctx,
     return pos;
 }
 
-/* MVT triples taken directly from `_refs/wmbusmeters/src/driver_izar.cc`.
- * Note: (HYD,0x07,0x85) and (HYD,0x07,0x86) are claimed by both the IZAR
- * and the generic Hydrus driver in upstream — putting IZAR earlier in
- * the registry gives it priority, since PRIOS decoding produces real
- * fields where the OMS walker would only see noise. */
+/* IZAR V2 MVT uses (manufacturer, version, medium) field order.
+ * Reference: wmbusmeters drivers/src/izarv2.xmq. */
 static const WmbusMVT k_mvt_izar[] = {
-    {"HYD", 0x07, 0x85},
-    {"HYD", 0x07, 0x86},
-    {"DME", 0x06, 0x78},
-    {"DME", 0x07, 0x78},
-    {"SAP", 0x15, 0xFF},
-    {"SAP", 0x04, 0xFF},
-    {"SAP", 0x07, 0x00},
+    {"HYD", 0x85, 0x07},
+    {"HYD", 0x86, 0x07},
+    {"DME", 0x78, 0x06},
+    {"DME", 0x78, 0x07},
+    {"SAP", 0xFF, 0x15},
+    {"SAP", 0xFF, 0x04},
+    {"SAP", 0x00, 0x07},
     { {0}, 0, 0 }
 };
 

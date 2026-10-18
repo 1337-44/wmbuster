@@ -14,6 +14,7 @@
 #include "key_store.h"
 #include "meters_db.h"
 #include "logger.h"
+#include "settings_store.h"
 #include "views/scan_canvas.h"
 #include "views/detail_canvas.h"
 #include "views/about_canvas.h"
@@ -147,6 +148,9 @@ WmbusApp* wmbus_app_alloc(void) {
     app->settings.freq_hz   = 868950000;
     app->settings.logging   = false;
     app->settings.auto_decrypt = true;
+    app->settings.sound_enabled = true;
+    app->settings.vibration_enabled = true;
+    app->settings.led_enabled = true;
     app->settings.module    = WmbusModuleAuto;
     app->selected = -1;
 
@@ -158,6 +162,7 @@ WmbusApp* wmbus_app_alloc(void) {
     app->gui = furi_record_open(RECORD_GUI);
     app->storage = furi_record_open(RECORD_STORAGE);
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
+    wmbus_settings_load(app);
 
     app->key_store = key_store_alloc(app->storage);
     key_store_load(app->key_store);
@@ -234,7 +239,7 @@ void wmbus_app_free(WmbusApp* app) {
  * scenes so re-entering Scan is instant. */
 
 static void led_on(WmbusApp* app) {
-    if(app->led_active) return;
+    if(app->led_active || !app->settings.led_enabled) return;
     furi_hal_light_blink_start(LightGreen | LightBlue, 0xC0, 25, 100);
     app->led_active = true;
 }
@@ -250,18 +255,26 @@ void wmbus_scanning_start(WmbusApp* app) {
     if(app->worker && !wmbus_worker_is_running(app->worker)) {
         wmbus_worker_start(app->worker, app->settings.mode);
     }
+    app->scan_alerts_active = true;
     led_on(app);
 }
 
 void wmbus_scanning_stop(WmbusApp* app) {
+    app->scan_alerts_active = false;
     led_off(app);
     if(app->worker && wmbus_worker_is_running(app->worker)) {
         wmbus_worker_stop(app->worker);
     }
 }
 
-void wmbus_scanning_indicator_off(WmbusApp* app) { led_off(app); }
-void wmbus_scanning_indicator_on (WmbusApp* app) { led_on(app); }
+void wmbus_scanning_indicator_off(WmbusApp* app) {
+    app->scan_alerts_active = false;
+    led_off(app);
+}
+void wmbus_scanning_indicator_on(WmbusApp* app) {
+    app->scan_alerts_active = true;
+    led_on(app);
+}
 
 /* ------------- Telegram callback (worker thread) ------------- */
 
@@ -400,7 +413,7 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
             size_t cap = sizeof(app->last_text);
             size_t pos = (size_t)snprintf(o, cap, "Decrypted OK\n");
             wmbus_app_render(plain, plain_len, o + pos, cap - pos);
-        } else if(!drv->decode && !ci_is_oms) {
+        } else if(!drv->decode && !drv->decode_ex && !ci_is_oms) {
             /* Non-OMS payload from an unrecognised manufacturer.
              *
              * Emit structured "Label  Value" rows so the meter list and
@@ -513,21 +526,27 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
     /* Bump the GUI sequence counter so the tick handler redraws. */
     app->telegram_seq++;
 
-    /* Beep+haptic per telegram, throttled to 800 ms, only on scan views. */
-    if(app->led_active) {
+    /* Sound and vibration are independent of the cyan scan LED. */
+    if(app->scan_alerts_active && app->notifications &&
+       (app->settings.sound_enabled || app->settings.vibration_enabled)) {
         static uint32_t last_alert_tick = 0;
         uint32_t now = furi_get_tick();
         if((uint32_t)(now - last_alert_tick) >= 800) {
             last_alert_tick = now;
-            static const NotificationSequence k_seq_telegram = {
-                &message_vibro_on,
-                &message_note_c5,
-                &message_delay_50,
-                &message_sound_off,
-                &message_vibro_off,
-                NULL,
+            static const NotificationSequence k_both = {
+                &message_vibro_on, &message_note_c5, &message_delay_50,
+                &message_sound_off, &message_vibro_off, NULL
             };
-            if(app->notifications) notification_message(app->notifications, &k_seq_telegram);
+            static const NotificationSequence k_sound = {
+                &message_note_c5, &message_delay_50, &message_sound_off, NULL
+            };
+            static const NotificationSequence k_vibration = {
+                &message_vibro_on, &message_delay_50, &message_vibro_off, NULL
+            };
+            const NotificationSequence* seq = app->settings.sound_enabled ?
+                (app->settings.vibration_enabled ? &k_both : &k_sound) :
+                &k_vibration;
+            notification_message(app->notifications, seq);
         }
     }
 }
