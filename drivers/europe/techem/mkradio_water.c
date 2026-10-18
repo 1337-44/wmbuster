@@ -1,9 +1,7 @@
-/* Techem MK-Radio 3 / 4 / 4a water meter.
- *
- * MK-Radio 3 telegrams carry billing-period date fields; MK-Radio
- * 4 and 4a omit them (the bytes are zero-filled). MVT lists are
- * mirrored from wmbusmeters `src/driver_mkradio3.cc`,
- * `src/driver_mkradio4.cc`, and `drivers/src/mkradio4a.xmq`. */
+/* Techem MK-Radio 3/4 water meters and MK-Radio4a OMS variant.
+ * MK-Radio3 carries dates, MK-Radio4 uses compact private data, whereas
+ * MK-Radio4a has OMS content and must not share MK-Radio4 offsets.
+ * References: wmbusmeters drivers/src/{mkradio3,mkradio4,mkradio4a}.xmq. */
 
 #include "../../engine/driver.h"
 #include "_compact.h"
@@ -28,7 +26,7 @@ const WmbusDriver wmbus_drv_techem_mkradio3 = {
 };
 
 /* MK-Radio 4: version 0x70/0x95, medium 0x62 (warm) / 0x72 (cold).
- * Preserve the 4a bridge/OEM entries for a separate decoder review.
+ * The 4a variant is routed separately using the OMS parser.
  * Reference: wmbusmeters drivers/src/mkradio4.xmq. */
 static const WmbusMVT k_mvt_mk4[] = {
     {"TCH", 0x70, 0x62},
