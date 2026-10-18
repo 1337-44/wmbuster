@@ -8,10 +8,11 @@
 #include "../../engine/driver.h"
 #include "_compact.h"
 
-/* MK-Radio 3 — version 0x62/0x72 + medium 0x74. */
+/* MK-Radio 3: version 0x74, medium 0x62 (warm) or 0x72 (cold).
+ * Reference: wmbusmeters drivers/src/mkradio3.xmq. */
 static const WmbusMVT k_mvt_mk3[] = {
-    {"TCH", 0x62, 0x74},
-    {"TCH", 0x72, 0x74},
+    {"TCH", 0x74, 0x62},
+    {"TCH", 0x74, 0x72},
     { {0}, 0, 0 }
 };
 static size_t decode_mk3(uint16_t m, uint8_t v, uint8_t med,
@@ -26,14 +27,15 @@ const WmbusDriver wmbus_drv_techem_mkradio3 = {
     .decode = decode_mk3,
 };
 
-/* MK-Radio 4 / 4a — versions 0x62/0x72/0x95 + mediums 0x70/0x95/0x37. */
+/* MK-Radio 4: version 0x70/0x95, medium 0x62 (warm) / 0x72 (cold).
+ * Preserve the 4a bridge/OEM entries for a separate decoder review.
+ * Reference: wmbusmeters drivers/src/mkradio4.xmq. */
 static const WmbusMVT k_mvt_mk4[] = {
-    {"TCH", 0x62, 0x70},
-    {"TCH", 0x72, 0x70},
-    {"TCH", 0x62, 0x95},
-    {"TCH", 0x72, 0x95},
+    {"TCH", 0x70, 0x62},
+    {"TCH", 0x70, 0x72},
+    {"TCH", 0x95, 0x62},
+    {"TCH", 0x95, 0x72},
     {"TCH", 0x95, 0x37},
-    {"TCH", 0x72, 0x50},   /* MK Radio 3a — wmbusmeters mkradio3a */
     {"HYD", 0xFE, 0x06},   /* mkradio4a OEM rebadge */
     { {0}, 0, 0 }
 };
