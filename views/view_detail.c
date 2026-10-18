@@ -78,8 +78,20 @@ void wmbus_view_detail_enter(void* ctx) {
     }
 
     char m[4]; wmbus_manuf_decode(mt.manuf, m);
+    const WmbusDriver* driver = wmbus_engine_find(mt.manuf, mt.version, mt.medium);
     const char* model = wmbus_engine_model_name(mt.manuf, mt.version, mt.medium);
     const char* med   = wmbus_medium_str(mt.medium);
+
+    /* Techem MK-Radio uses 0x62 for warm and 0x72 for cold water.
+     * The full model title is too long for the narrow details header:
+     * keep a short model + temperature label, and show the full
+     * water type as the first data row (so it cannot be truncated). */
+    const char* mk_model = NULL;
+    if(strcmp(driver->id, "techem-mkradio4") == 0) mk_model = "MK4";
+    else if(strcmp(driver->id, "techem-mkradio3") == 0) mk_model = "MK3";
+    else if(strcmp(driver->id, "mkradio3a") == 0) mk_model = "MK3a";
+    bool mk_water = mk_model && (mt.medium == 0x62 || mt.medium == 0x72);
+    const char* water_type = mt.medium == 0x62 ? "Hot water" : "Cold water";
 
     char id_line[24];
     snprintf(id_line, sizeof(id_line), "%s %08lX", m, (unsigned long)mt.id);
@@ -88,6 +100,8 @@ void wmbus_view_detail_enter(void* ctx) {
      * subtitle is just the model (when known) or the medium type. */
     char subtitle[28];
     if(mt.is_izar)   snprintf(subtitle, sizeof(subtitle), "Diehl IZAR water");
+    else if(mk_water) snprintf(subtitle, sizeof(subtitle), "%s %s",
+                               mk_model, mt.medium == 0x62 ? "Hot" : "Cold");
     else if(model)   snprintf(subtitle, sizeof(subtitle), "%s", model);
     else if(med)     snprintf(subtitle, sizeof(subtitle), "%s", med);
     else             subtitle[0] = 0;
@@ -103,7 +117,14 @@ void wmbus_view_detail_enter(void* ctx) {
                              mt.encrypted, badge);
 
     DetailRow rows[16];
-    size_t n = parse_rows(mt.text, rows, 16);
+    size_t n = 0;
+    if(mk_water) {
+        memset(&rows[0], 0, sizeof(rows[0]));
+        snprintf(rows[0].label, sizeof(rows[0].label), "Type");
+        snprintf(rows[0].value, sizeof(rows[0].value), "%s", water_type);
+        n = 1;
+    }
+    n += parse_rows(mt.text, rows + n, 16 - n);
     detail_canvas_set_rows(app->detail_canvas, rows, n);
     /* Pass the most recent APDU so the user can press OK to flip into
      * raw-bytes mode for forensics or RE work. */
