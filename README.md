@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="docs/banner.png" alt="wM-Buster — wM-Bus smart-meter analyser for Flipper Zero" width="100%"/>
-
 **Passive wireless M-Bus listener for the Flipper Zero**
 
 Read EU utility meters (heat, water, gas, electricity, heat-cost allocators)
