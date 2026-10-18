@@ -22,6 +22,8 @@ static void parse_setting(WmbusSettings* s, const char* line) {
         if(v < 2) s->vibration_enabled = (v != 0);
     } else if(sscanf(line, "led=%u", &v) == 1) {
         if(v < 2) s->led_enabled = (v != 0);
+    } else if(sscanf(line, "gps=%u", &v) == 1) {
+        if(v < 2) s->gps_enabled = (v != 0);
     }
 }
 
@@ -51,7 +53,7 @@ bool wmbus_settings_save(WmbusApp* app) {
     char buf[256];
     int len = snprintf(buf, sizeof(buf),
         "version=1\nmode=%u\nfilter=%u\nsort=%u\nmodule=%u\n"
-        "logging=%u\nsound=%u\nvibration=%u\nled=%u\n",
+        "logging=%u\nsound=%u\nvibration=%u\nled=%u\ngps=%u\n",
         (unsigned)app->settings.mode,
         (unsigned)app->settings.filter,
         (unsigned)app->settings.sort,
@@ -59,7 +61,8 @@ bool wmbus_settings_save(WmbusApp* app) {
         (unsigned)app->settings.logging,
         (unsigned)app->settings.sound_enabled,
         (unsigned)app->settings.vibration_enabled,
-        (unsigned)app->settings.led_enabled);
+        (unsigned)app->settings.led_enabled,
+        (unsigned)app->settings.gps_enabled);
     if(len <= 0 || len >= (int)sizeof(buf)) return false;
     File* f = storage_file_alloc(app->storage);
     bool ok = false;
