@@ -141,23 +141,23 @@ bool wmbus_log_telegram(
         }
         char kmh[28] = "null", knots[28] = "null", course[28] = "null";
         if(gps->speed_valid) {
-            snprintf(kmh, sizeof(kmh), "%.3f", gps->speed_kmh);
-            snprintf(knots, sizeof(knots), "%.3f", gps->speed_knots);
+            snprintf(kmh, sizeof(kmh), "%.3f", (double)gps->speed_kmh);
+            snprintf(knots, sizeof(knots), "%.3f", (double)gps->speed_knots);
         }
-        if(gps->course_valid) snprintf(course, sizeof(course), "%.2f", gps->course_deg);
+        if(gps->course_valid) snprintf(course, sizeof(course), "%.2f", (double)gps->course_deg);
         n = snprintf(json + used, sizeof(json) - used,
             ",\"lat\":%.7f,\"lon\":%.7f,\"speed_kmh\":%s,"
             "\"speed_knots\":%s,\"course_deg\":%s,"
             "\"age_ms\":%lu",
-            gps->latitude, gps->longitude, kmh, knots, course,
+            (double)gps->latitude, (double)gps->longitude, kmh, knots, course,
             (unsigned long)gps->age_ms);
         if(n < 0 || (size_t)n >= sizeof(json) - used) goto truncated;
         used += (size_t)n;
         if(gps->gga_valid) {
             char altitude[28] = "null", hdop[28] = "null";
             if(gps->altitude_valid)
-                snprintf(altitude, sizeof(altitude), "%.2f", gps->altitude_m);
-            if(gps->hdop_valid) snprintf(hdop, sizeof(hdop), "%.2f", gps->hdop);
+                snprintf(altitude, sizeof(altitude), "%.2f", (double)gps->altitude_m);
+            if(gps->hdop_valid) snprintf(hdop, sizeof(hdop), "%.2f", (double)gps->hdop);
             n = snprintf(json + used, sizeof(json) - used,
                 ",\"fix_quality\":%u,\"satellites\":%u,\"hdop\":%s,"
                 "\"altitude_m\":%s",
