@@ -9,12 +9,14 @@
 
 extern const WmbusDriver wmbus_drv_techem_mkradio3;
 extern const WmbusDriver wmbus_drv_techem_mkradio4;
+extern const WmbusDriver wmbus_drv_techem_mkradio4a;
 extern const WmbusDriver wmbus_drv_techem_mkradio3a;
 extern const WmbusDriver wmbus_drv_diehl_izar;
 
 const WmbusDriver* const wmbus_engine_registry[] = {
     &wmbus_drv_techem_mkradio3,
     &wmbus_drv_techem_mkradio4,
+    &wmbus_drv_techem_mkradio4a,
     &wmbus_drv_techem_mkradio3a,
     &wmbus_drv_diehl_izar,
 };
@@ -92,6 +94,7 @@ int main(void) {
     expect("MK-Radio4 cold v70", 0x70, 0x72, &wmbus_drv_techem_mkradio4);
     expect("MK-Radio4 cold v95", 0x95, 0x72, &wmbus_drv_techem_mkradio4);
     expect("MK-Radio3a cold", 0x50, 0x72, &wmbus_drv_techem_mkradio3a);
+    expect("MK-Radio4a", 0x95, 0x37, &wmbus_drv_techem_mkradio4a);
 
     assert(wmbus_engine_find(0x5068, 0x62, 0x74)
            != &wmbus_drv_techem_mkradio3);
