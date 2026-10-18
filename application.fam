@@ -15,6 +15,8 @@ App(
         "wmbus_app.c",
         "settings_store.c",
         "logger.c",
+        "gps/gps_receiver.c",
+        "gps/minmea.c",
         "meters_db.c",
         "key_store.c",
         "protocol/wmbus_3of6.c",
