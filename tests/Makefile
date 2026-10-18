@@ -63,14 +63,20 @@ TECHEM_WATER_SRC = test_techem_water.c \
 test_techem_water: $(TECHEM_WATER_SRC)
 	$(CC) $(CFLAGS) $(TECHEM_WATER_SRC) -o $@
 
-check: test_link test_izar test_apator_hca test_ports test_techem_water
+GPS_NMEA_SRC = test_gps_nmea.c ../gps/minmea.c
+
+test_gps_nmea: $(GPS_NMEA_SRC)
+	$(CC) $(CFLAGS) $(GPS_NMEA_SRC) -o $@
+
+check: test_link test_izar test_apator_hca test_ports test_techem_water test_gps_nmea
 	./test_link
 	./test_izar
 	./test_apator_hca
 	./test_ports
 	./test_techem_water
+	./test_gps_nmea
 
 clean:
-	rm -f test_link test_izar test_apator_hca test_ports test_techem_water
+	rm -f test_link test_izar test_apator_hca test_ports test_techem_water test_gps_nmea
 
 .PHONY: check clean
