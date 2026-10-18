@@ -48,8 +48,14 @@ static void run(const char* name, const char* hex, const char* must_contain) {
         .ci = link.ci, .id = link.id,
         .apdu = link.apdu, .apdu_len = link.apdu_len,
     };
+    const WmbusDriver* selected = wmbus_engine_find_ctx(&ctx);
+    if(selected != &wmbus_drv_diehl_izar) {
+        fprintf(stderr, "%s: auto-detection failed (V=%02X T=%02X CI=%02X)\n",
+                name, link.version, link.medium, link.ci);
+        exit(1);
+    }
     char out[1024];
-    size_t n = wmbus_drv_diehl_izar.decode_ex(&ctx, out, sizeof(out));
+    size_t n = wmbus_engine_decode_ctx(&ctx, out, sizeof(out));
     out[n < sizeof(out) ? n : sizeof(out) - 1] = 0;
 
     char mc[4]; wmbus_manuf_decode(link.M, mc);
@@ -91,6 +97,9 @@ int main(void) {
     run("IzarWater",
         "1944304C72242421D401A2 013D4013DD8B46A4999C1293E582CC",
         "3.488 m3");
+    run("IzarWater2",
+        "2944A511780729662366A20118001378D3B3DB8CEDD77731F25832AAF3DA8CADF9774EA673172E8C61F2",
+        "16.760 m3");
     run("IzarWater3",
         "1944A5117807791948 20A1 21170013355F8EDB2D03C6912B1E37",
         "4.366 m3");
@@ -103,6 +112,22 @@ int main(void) {
     run("IzarWater6",
         "194424238607750350 48 A251520015BEB6B2E1ED623A18FC74A5",
         "521.602 m3");
+    /* Corrupt the PRIOS marker ciphertext: must not identify random
+     * SAP/Oil as an IZAR merely because the vendor bytes match. */
+    {
+        uint8_t fr[300];
+        size_t n = hex2bin("1944304C72242421D401A2013D4013DD8B46A4999C1293E582CC",
+                           fr, sizeof(fr));
+        fr[15] ^= 0xFF; /* first encrypted byte after 4-byte preamble */
+        WmbusLinkFrame link;
+        assert(wmbus_link_parse(fr, n, &link));
+        WmbusDecodeCtx ctx = {
+            .manuf = link.M, .version = link.version, .medium = link.medium,
+            .ci = link.ci, .id = link.id, .apdu = link.apdu,
+            .apdu_len = link.apdu_len,
+        };
+        assert(wmbus_engine_find_ctx(&ctx) != &wmbus_drv_diehl_izar);
+    }
     printf("\nAll IZAR tests passed.\n");
     return 0;
 }
