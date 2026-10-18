@@ -543,10 +543,13 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
             static const NotificationSequence k_vibration = {
                 &message_vibro_on, &message_delay_50, &message_vibro_off, NULL
             };
-            const NotificationSequence* seq = app->settings.sound_enabled ?
-                (app->settings.vibration_enabled ? &k_both : &k_sound) :
-                &k_vibration;
-            notification_message(app->notifications, seq);
+            if(app->settings.sound_enabled && app->settings.vibration_enabled) {
+                notification_message(app->notifications, &k_both);
+            } else if(app->settings.sound_enabled) {
+                notification_message(app->notifications, &k_sound);
+            } else {
+                notification_message(app->notifications, &k_vibration);
+            }
         }
     }
 }
