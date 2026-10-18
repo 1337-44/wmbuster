@@ -61,6 +61,7 @@ typedef struct {
     char     last_value[32];/* short single-line summary for the meter list */
     bool     encrypted;
     bool     decrypted_ok;
+    bool     is_izar;       /* proprietary PRIOS payload was recognised */
     bool     have_key;       /* a key for this meter is present in the store */
 
     /* Per-meter snapshot of the most recent telegram. We keep these next
