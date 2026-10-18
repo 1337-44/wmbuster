@@ -63,7 +63,28 @@ static void run(const char* name, const char* hex, const char* must_contain) {
     }
 }
 
+static uint16_t manufacturer_code(const char* s) {
+    return (uint16_t)(((s[0] - 'A' + 1) << 10) |
+                      ((s[1] - 'A' + 1) << 5) |
+                      (s[2] - 'A' + 1));
+}
+static void expect_izar(const char* m, uint8_t version, uint8_t medium) {
+    const WmbusDriver* d = wmbus_engine_find(
+        manufacturer_code(m), version, medium);
+    if(d != &wmbus_drv_diehl_izar) {
+        fprintf(stderr, "IZAR matching failed: %s/%02X/%02X\n", m, version, medium);
+        exit(1);
+    }
+}
+
 int main(void) {
+    expect_izar("HYD", 0x85, 0x07);
+    expect_izar("HYD", 0x86, 0x07);
+    expect_izar("DME", 0x78, 0x06);
+    expect_izar("DME", 0x78, 0x07);
+    expect_izar("SAP", 0x12, 0x15);
+    expect_izar("SAP", 0x12, 0x04);
+    expect_izar("SAP", 0x00, 0x07);
     /* Tests lifted verbatim from driver_izar.cc — telegram + expected
      * total_m3 substring. wmbusmeters's "NOKEY" tests use the public
      * default keys, which is exactly what our default-key path tries. */
