@@ -93,6 +93,10 @@ typedef struct {
 const WmbusDriver* wmbus_engine_find(
     uint16_t manuf, uint8_t version, uint8_t medium);
 
+/* Full-context detection additionally recognises proprietary IZAR/PRIOS
+ * telegrams whose version/type bytes are not ordinary OMS MVT fields. */
+const WmbusDriver* wmbus_engine_find_ctx(const WmbusDecodeCtx* ctx);
+
 /* Convenience: render an APDU into `out` using whichever driver
  * matches. Returns bytes written. */
 size_t wmbus_engine_decode(
