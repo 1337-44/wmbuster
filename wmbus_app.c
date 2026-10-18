@@ -375,14 +375,14 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
     static int8_t  s_log_rssi;
     size_t  log_len = 0;
 
-    /* Driver dispatch — `wmbus_engine_find` is the only entry point.
-     * It always returns a non-NULL driver (a sentinel "OMS payload"
-     * one when nothing in the registry matches) so we can dereference
-     * it freely. The CI byte still gates whether we trust the OMS
-     * walker for *unrecognised* manufacturers — proprietary CI bytes
-     * fall through to a structured hex dump rather than mis-decoded
-     * fields. */
-    const WmbusDriver* drv = wmbus_engine_find(link.M, link.version, link.medium);
+    /* IZAR/PRIOS can repurpose link version and medium bytes. Use the
+     * authenticated PRIOS-header probe before the ordinary MVT fallback. */
+    WmbusDecodeCtx ctx = {
+        .manuf = link.M, .version = link.version, .medium = link.medium,
+        .ci = link.ci, .id = link.id, .apdu = plain, .apdu_len = plain_len,
+    };
+    const WmbusDriver* drv = wmbus_engine_find_ctx(&ctx);
+    mt->is_izar = strcmp(drv->id, "diehl-izar") == 0;
     bool ci_is_oms = false;
     switch(link.ci) {
     case 0x72: case 0x7A: case 0x78: case 0x79:
@@ -465,11 +465,6 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
              * the meter ID and CI byte to derive their stream-cipher seed,
              * and the legacy callback path is preserved for everything
              * else (see wmbus_engine_decode_ctx). */
-            WmbusDecodeCtx ctx = {
-                .manuf = link.M, .version = link.version, .medium = link.medium,
-                .ci    = link.ci, .id     = link.id,
-                .apdu  = plain,   .apdu_len = plain_len,
-            };
             wmbus_engine_decode_ctx(&ctx, app->last_text, sizeof(app->last_text));
         }
     }
