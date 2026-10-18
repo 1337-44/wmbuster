@@ -54,9 +54,11 @@ static void gps_parse_line(WmbusGpsReceiver* g, const char* line) {
             } else {
                 g->sample.latitude = lat;
                 g->sample.longitude = lon;
-                g->sample.speed_knots = isfinite(speed) ? speed : 0.0;
+                g->sample.speed_valid = isfinite(speed) && speed >= 0;
+                g->sample.course_valid = isfinite(course) && course >= 0;
+                g->sample.speed_knots = g->sample.speed_valid ? speed : 0.0;
                 g->sample.speed_kmh = g->sample.speed_knots * 1.852;
-                g->sample.course_deg = isfinite(course) ? course : 0.0;
+                g->sample.course_deg = g->sample.course_valid ? course : 0.0;
                 int y = r.date.year;
                 if(y >= 0 && y < 80) y += 2000;
                 else if(y >= 80 && y < 100) y += 1900;
@@ -87,8 +89,10 @@ static void gps_parse_line(WmbusGpsReceiver* g, const char* line) {
         if(g->have_gga) {
             double alt = (double)minmea_tofloat(&a.altitude);
             double hdop = (double)minmea_tofloat(&a.hdop);
-            g->sample.altitude_m = isfinite(alt) ? alt : 0.0;
-            g->sample.hdop = isfinite(hdop) ? hdop : 0.0;
+            g->sample.altitude_valid = isfinite(alt);
+            g->sample.hdop_valid = isfinite(hdop);
+            g->sample.altitude_m = g->sample.altitude_valid ? alt : 0.0;
+            g->sample.hdop = g->sample.hdop_valid ? hdop : 0.0;
             g->sample.satellites = (uint8_t)
                 (a.satellites_tracked > 0 && a.satellites_tracked <= 99 ?
                  a.satellites_tracked : 0);
@@ -189,7 +193,8 @@ bool wmbus_gps_snapshot(WmbusGpsReceiver* g, WmbusGpsFix* out) {
     *out = g->sample;
     uint32_t now = furi_get_tick();
     out->age_ms = (uint32_t)(now - g->rmc_tick);
-    out->fix = g->rmc_valid && out->age_ms <= GPS_FIX_MAX_AGE_MS;
+    out->fix = g->rmc_valid && out->utc_valid &&
+        out->age_ms <= GPS_FIX_MAX_AGE_MS;
     out->gga_valid = g->have_gga &&
         (uint32_t)(now - g->gga_tick) <= GPS_GGA_MAX_AGE_MS;
     if(!out->fix) {
