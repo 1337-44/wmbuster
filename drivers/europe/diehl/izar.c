@@ -318,6 +318,35 @@ static size_t decode_izar_ex(const WmbusDecodeCtx* ctx,
     return pos;
 }
 
+/* Detect proprietary IZAR/PRIOS using decrypted header evidence rather than
+ * broad SAP/Oil version/type wildcards. Several genuine IZAR messages
+ * repurpose those A-field bytes, so an MVT-only dispatcher misses them.
+ * Check an entire 11-byte block: marker, volume and plausible billing date.
+ * Never classify random SAP telegrams merely because medium is 0x01. */
+bool wmbus_izar_probe(const WmbusDecodeCtx* ctx) {
+    if(!ctx || !ctx->apdu || ctx->apdu_len < 15) return false;
+    if(ctx->ci != 0xA1 && ctx->ci != 0xA2 && ctx->ci != 0xA3) return false;
+
+    char manuf[4];
+    /* Standard wM-Bus 5-bit character field, not an ASCII byte string. */
+    manuf[0] = (char)('@' + ((ctx->manuf >> 10) & 0x1F));
+    manuf[1] = (char)('@' + ((ctx->manuf >> 5) & 0x1F));
+    manuf[2] = (char)('@' + (ctx->manuf & 0x1F));
+    manuf[3] = 0;
+    if(strcmp(manuf, "SAP") && strcmp(manuf, "HYD") && strcmp(manuf, "DME"))
+        return false;
+
+    uint8_t dec[11];
+    for(size_t k = 0; k < sizeof(k_prios_default_keys) / sizeof(k_prios_default_keys[0]); k++) {
+        uint32_t seed = prios_seed(k_prios_default_keys[k], ctx);
+        if(!prios_decrypt(seed, ctx->apdu + 4, sizeof(dec), dec)) continue;
+        uint8_t day = dec[9] & 0x1F;
+        uint8_t month = dec[10] & 0x0F;
+        if(day >= 1 && day <= 31 && month >= 1 && month <= 12) return true;
+    }
+    return false;
+}
+
 /* IZAR V2 MVT uses (manufacturer, version, medium) field order.
  * Reference: wmbusmeters drivers/src/izarv2.xmq. */
 static const WmbusMVT k_mvt_izar[] = {
