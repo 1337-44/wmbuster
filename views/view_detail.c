@@ -87,7 +87,8 @@ void wmbus_view_detail_enter(void* ctx) {
     /* The id line above already shows the manufacturer code, so the
      * subtitle is just the model (when known) or the medium type. */
     char subtitle[28];
-    if(model)        snprintf(subtitle, sizeof(subtitle), "%s", model);
+    if(mt.is_izar)   snprintf(subtitle, sizeof(subtitle), "Diehl IZAR water");
+    else if(model)   snprintf(subtitle, sizeof(subtitle), "%s", model);
     else if(med)     snprintf(subtitle, sizeof(subtitle), "%s", med);
     else             subtitle[0] = 0;
 
