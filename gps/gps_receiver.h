@@ -8,6 +8,10 @@ typedef struct {
     bool fix;
     bool utc_valid;
     bool gga_valid;
+    bool speed_valid;
+    bool course_valid;
+    bool altitude_valid;
+    bool hdop_valid;
     double latitude;
     double longitude;
     double speed_knots;
