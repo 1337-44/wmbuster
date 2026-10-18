@@ -1,12 +1,15 @@
-# GPS integration
+# GPS roadmap
 
-The first UART GNSS integration is implemented on the `feat/gps-session-and-driver-audit` branch. See [GPS.md](GPS.md) for wiring, settings, log schema and test procedure.
+Initial UART GPS integration is available on the
+`feat/gps-session-and-driver-audit` branch. See [GPS.md](GPS.md) for
+wiring, GPS fix detection, NMEA parser, log schema, limitations and testing.
 
-## Improvements for later iterations
+## Later improvements
 
-- External UART GNSS receiver; avoid blocking the Sub-GHz receive worker.
-- Record receive-time UTC (when available), coordinates, fix validity and fix age.
-- Leave `RAW` telegram lines unchanged to preserve compatibility with wmbusmeters.org/analyze.
-- Add optional location to JSON logs; missing or stale fixes must not emit guessed coordinates.
-- Resolve GPIO/UART coexistence with an external CC1101 before implementation.
-- Provide a separate persisted `GPS logging` preference and document location privacy.
+- Support other UART baud rates selectable in Settings (first release: 9600).
+- Automatic detection of external CC1101 and GPS GPIO pin conflicts.
+- Optional UART GPS diagnostics screen (raw NMEA, CRC errors, satellites).
+- Optional RTC sync to GPS UTC, behind explicit user confirmation.
+- Field validation with multiple GNSS breakout boards and long sessions.
+- Tests with real moving receivers and delayed/stale GPS packets.
+- Optional local-only privacy controls for geographic coordinates.
