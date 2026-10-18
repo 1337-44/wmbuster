@@ -100,8 +100,7 @@ void wmbus_view_detail_enter(void* ctx) {
      * subtitle is just the model (when known) or the medium type. */
     char subtitle[28];
     if(mt.is_izar)   snprintf(subtitle, sizeof(subtitle), "Diehl IZAR water");
-    else if(mk_water) snprintf(subtitle, sizeof(subtitle), "%s %s",
-                               mk_model, mt.medium == 0x62 ? "Hot" : "Cold");
+    else if(mk_water) snprintf(subtitle, sizeof(subtitle), "%s", model);
     else if(model)   snprintf(subtitle, sizeof(subtitle), "%s", model);
     else if(med)     snprintf(subtitle, sizeof(subtitle), "%s", med);
     else             subtitle[0] = 0;
@@ -120,7 +119,7 @@ void wmbus_view_detail_enter(void* ctx) {
     size_t n = 0;
     if(mk_water) {
         memset(&rows[0], 0, sizeof(rows[0]));
-        snprintf(rows[0].label, sizeof(rows[0].label), "Type");
+        snprintf(rows[0].label, sizeof(rows[0].label), "Media");
         snprintf(rows[0].value, sizeof(rows[0].value), "%s", water_type);
         n = 1;
     }
