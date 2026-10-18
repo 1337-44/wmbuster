@@ -19,6 +19,7 @@
 #define WMBUS_APP_NAME           "wM-Buster"
 #define WMBUS_APP_DATA_DIR       EXT_PATH("apps_data/wmbuster")
 #define WMBUS_APP_KEYS_FILE      WMBUS_APP_DATA_DIR "/keys.csv"
+#define WMBUS_APP_SETTINGS_FILE  WMBUS_APP_DATA_DIR "/settings.cfg"
 #define WMBUS_APP_LOG_DIR        WMBUS_APP_DATA_DIR "/log"
 
 #define WMBUS_MAX_METERS         32
@@ -100,6 +101,9 @@ typedef struct {
     uint32_t  freq_hz;     /* derived from mode; kept in sync */
     bool      logging;
     bool      auto_decrypt;
+    bool      sound_enabled;
+    bool      vibration_enabled;
+    bool      led_enabled;
     WmbusFilter filter;    /* RSSI-based filter for the meter list */
     WmbusSort   sort;      /* ordering of the meter list */
     WmbusModuleSetting module; /* internal vs external CC1101       */
@@ -165,6 +169,7 @@ struct WmbusApp {
     WmbusWorker*       worker;
     FuriMutex*         lock;
     bool               led_active;     /* set while cyan blink is running */
+    bool               scan_alerts_active; /* alerts independent of LED */
     bool               on_meters_view; /* tick callback rebuilds list while true */
     uint32_t           telegram_seq;   /* incremented per accepted telegram */
     uint32_t           last_shown_seq; /* what UI last drew */
