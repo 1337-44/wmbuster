@@ -131,7 +131,8 @@ static const char* medium_short(uint8_t med) {
         case 0x02: case 0x80:                       return "El";
         case 0x03:                                  return "Gas";
         case 0x04: case 0x0C: case 0x0D:
-        case 0x62: case 0x72:                       return "Heat";
+        case 0x62:                                  return "HotW";
+        case 0x72:                                  return "ColdW";
         case 0x05:                                  return "Stm";
         case 0x06: case 0x15:                       return "HotW";
         case 0x07: case 0x16: case 0x17:            return "Wat";
