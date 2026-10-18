@@ -49,13 +49,28 @@ PORTS_SRC = test_ports.c \
 test_ports: $(PORTS_SRC)
 	$(CC) $(CFLAGS) $(PORTS_SRC) -o $@
 
-check: test_link test_izar test_apator_hca test_ports
+TECHEM_WATER_SRC = test_techem_water.c \
+            ../drivers/europe/techem/mkradio_water.c \
+            ../drivers/europe/techem/mkradio3a.c \
+            ../drivers/europe/techem/_compact.c \
+            ../drivers/europe/diehl/izar.c \
+            ../drivers/engine/driver.c \
+            ../protocol/wmbus_link.c \
+            ../protocol/wmbus_manuf.c \
+            ../protocol/wmbus_medium.c \
+            ../protocol/wmbus_app_layer.c
+
+test_techem_water: $(TECHEM_WATER_SRC)
+	$(CC) $(CFLAGS) $(TECHEM_WATER_SRC) -o $@
+
+check: test_link test_izar test_apator_hca test_ports test_techem_water
 	./test_link
 	./test_izar
 	./test_apator_hca
 	./test_ports
+	./test_techem_water
 
 clean:
-	rm -f test_link test_izar test_apator_hca test_ports
+	rm -f test_link test_izar test_apator_hca test_ports test_techem_water
 
 .PHONY: check clean
