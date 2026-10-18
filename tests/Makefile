@@ -22,6 +22,7 @@ test_izar: $(IZAR_SRC)
 
 APATOR_HCA_SRC = test_apator_hca.c \
            ../drivers/europe/apator/apator.c \
+           ../drivers/europe/diehl/izar.c \
            ../drivers/engine/driver.c \
            ../protocol/wmbus_link.c \
            ../protocol/wmbus_manuf.c \
@@ -32,6 +33,7 @@ test_apator_hca: $(APATOR_HCA_SRC)
 	$(CC) $(CFLAGS) $(APATOR_HCA_SRC) -o $@
 
 PORTS_SRC = test_ports.c \
+            ../drivers/europe/diehl/izar.c \
             ../drivers/europe/bmeters/hydrodigit.c \
             ../drivers/europe/engelmann/hydroclima.c \
             ../drivers/europe/sontex/rfmtx1.c \
