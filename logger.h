@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <storage/storage.h>
 #include "protocol/wmbus_link.h"
+#include "gps/gps_receiver.h"
 
 /* Append a single telegram entry to today's log file at WMBUS_APP_LOG_DIR.
  * Writes one line:  <ms-tick>,<rssi>,<hex-frame>  followed by a JSON line
@@ -13,4 +14,6 @@ bool wmbus_log_telegram(
     const uint8_t* frame, size_t len,
     int8_t rssi,
     const WmbusLinkFrame* link,
-    const char* parsed_text);
+    const char* parsed_text,
+    const WmbusGpsFix* gps,
+    bool gps_enabled);
