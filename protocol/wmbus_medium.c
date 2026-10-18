@@ -35,8 +35,8 @@ const char* wmbus_medium_str(uint8_t code) {
     /* Techem-private codes seen in EU residential buildings; not in the
      * OMS standard table but worth labelling so the medium column is
      * meaningful for the majority of frames. */
-    case 0x62: return "Heat (volumetric)";
-    case 0x72: return "Heat (compact)";
+    case 0x62: return "Warm water";
+    case 0x72: return "Cold water";
     case 0x80: return "Electricity";
     default:   return "Unknown";
     }
