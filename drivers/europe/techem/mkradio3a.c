@@ -59,7 +59,7 @@ static size_t decode_mk3a(uint16_t m, uint8_t v, uint8_t med,
 }
 
 static const WmbusMVT k_mvt[] = {
-    {"TCH", 0x72, 0x50},
+    {"TCH", 0x50, 0x72},
     { {0}, 0, 0 }
 };
 const WmbusDriver wmbus_drv_techem_mkradio3a = {
