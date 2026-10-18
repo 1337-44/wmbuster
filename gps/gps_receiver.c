@@ -44,21 +44,21 @@ static void gps_parse_line(WmbusGpsReceiver* g, const char* line) {
         g->rmc_valid = r.valid;
         g->rmc_tick = furi_get_tick();
         if(r.valid) {
-            double lat = (double)minmea_tocoord(&r.latitude);
-            double lon = (double)minmea_tocoord(&r.longitude);
-            double speed = (double)minmea_tofloat(&r.speed);
-            double course = (double)minmea_tofloat(&r.course);
+            float lat = minmea_tocoord(&r.latitude);
+            float lon = minmea_tocoord(&r.longitude);
+            float speed = minmea_tofloat(&r.speed);
+            float course = minmea_tofloat(&r.course);
             if(!isfinite(lat) || !isfinite(lon) ||
-                lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0) {
+                lat < -90.0f || lat > 90.0f || lon < -180.0f || lon > 180.0f) {
                 g->rmc_valid = false;
             } else {
                 g->sample.latitude = lat;
                 g->sample.longitude = lon;
                 g->sample.speed_valid = isfinite(speed) && speed >= 0;
                 g->sample.course_valid = isfinite(course) && course >= 0;
-                g->sample.speed_knots = g->sample.speed_valid ? speed : 0.0;
-                g->sample.speed_kmh = g->sample.speed_knots * 1.852;
-                g->sample.course_deg = g->sample.course_valid ? course : 0.0;
+                g->sample.speed_knots = g->sample.speed_valid ? speed : 0.0f;
+                g->sample.speed_kmh = g->sample.speed_knots * 1.852f;
+                g->sample.course_deg = g->sample.course_valid ? course : 0.0f;
                 int y = r.date.year;
                 if(y >= 0 && y < 80) y += 2000;
                 else if(y >= 80 && y < 100) y += 1900;
@@ -87,12 +87,12 @@ static void gps_parse_line(WmbusGpsReceiver* g, const char* line) {
         g->have_gga = a.fix_quality > 0;
         g->gga_tick = furi_get_tick();
         if(g->have_gga) {
-            double alt = (double)minmea_tofloat(&a.altitude);
-            double hdop = (double)minmea_tofloat(&a.hdop);
+            float alt = minmea_tofloat(&a.altitude);
+            float hdop = minmea_tofloat(&a.hdop);
             g->sample.altitude_valid = isfinite(alt);
             g->sample.hdop_valid = isfinite(hdop);
-            g->sample.altitude_m = g->sample.altitude_valid ? alt : 0.0;
-            g->sample.hdop = g->sample.hdop_valid ? hdop : 0.0;
+            g->sample.altitude_m = g->sample.altitude_valid ? alt : 0.0f;
+            g->sample.hdop = g->sample.hdop_valid ? hdop : 0.0f;
             g->sample.satellites = (uint8_t)
                 (a.satellites_tracked > 0 && a.satellites_tracked <= 99 ?
                  a.satellites_tracked : 0);
@@ -198,11 +198,11 @@ bool wmbus_gps_snapshot(WmbusGpsReceiver* g, WmbusGpsFix* out) {
     out->gga_valid = g->have_gga &&
         (uint32_t)(now - g->gga_tick) <= GPS_GGA_MAX_AGE_MS;
     if(!out->fix) {
-        out->latitude = 0.0;
-        out->longitude = 0.0;
-        out->speed_kmh = 0.0;
-        out->speed_knots = 0.0;
-        out->course_deg = 0.0;
+        out->latitude = 0.0f;
+        out->longitude = 0.0f;
+        out->speed_kmh = 0.0f;
+        out->speed_knots = 0.0f;
+        out->course_deg = 0.0f;
         out->utc_valid = false;
     }
     furi_mutex_release(g->lock);
