@@ -13,25 +13,38 @@ remains receive-only and works without any GPS module connected.
   its host-only `timegm` call is substituted for Flipper toolchain compatibility.
 - Independent, adapted integration in `gps/gps_receiver.{c,h}`.
 
-## Wiring
+## Wiring and 5 V GPIO power
 
-For a GPS/GNSS receiver that supports **3.3 V power AND 3.3 V UART logic**:
+For **NEO-6M breakout boards with an onboard 5 V-to-3.3 V regulator**
+(and **3.3 V UART logic**), use:
 
-| GPS | Flipper Zero |
+| GPS module | Flipper Zero |
 |---|---|
-| VCC | 3.3 V GPIO pin 9 |
+| VCC | 5 V GPIO **pin 1** |
 | GND | GND GPIO pin 11 |
 | TX | USART RX pin 14 |
 | RX (optional) | USART TX pin 13 |
 
-**Do not connect 5 V UART logic directly.** A GPS breakout that requires
-5 V power needs suitable external/regulator power according to its datasheet.
-Verify a shared ground, voltage level and the pin numbering on YOUR board.
-UART pins may conflict with an external CC1101 or other GPIO module; verify
-their wiring before enabling both.
+**Important:** 5 V is only suitable for breakout boards *rated for 5 V on
+VCC*. The bare NEO-6M chip itself uses 3.3 V. For modules specifically
+rated for a 3.3 V input, use **GPIO pin 9** as VCC instead.
 
-UART runs at **9600 baud, 8N1**. NMEA RMC and GGA sentences with valid
-checksums are accepted. GPS needs sky visibility and may take minutes to lock.
+Unlike the 3.3 V pin, Flipper's 5 V pin 1 is normally switched off. Since
+the GPS test application enables that output, earlier wM-Buster builds
+appeared to show 'GPS no fix' and an unpowered LED on 5 V NEO-6M boards.
+The fixed GPS integration **automatically enables GPIO 5 V on GPS UART On**,
+and disables it on GPS UART Off or app exit **only if this GPS instance
+enabled it**. If the supply was already on, the app leaves it on. A failed
+5 V enable is logged as a warning; confirm wiring and test the 5 V GPIO
+output if the GPS still receives no power.
+
+**Never feed 5 V TTL signals into UART GPIO.** GPS TX must use 3.3 V
+logic or a level shifter. Confirm voltage ratings and pin numbers for
+your exact breakout before wiring. UART pins may conflict with external
+CC1101 or other modules; verify coexistence.
+
+UART runs at **9600 baud, 8N1**. NMEA RMC/GGA messages require valid
+checksums; GPS needs sky visibility and may take minutes to lock.
 
 ## Enable and use
 
