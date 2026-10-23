@@ -235,7 +235,7 @@ static void rebuild(WmbusApp* app) {
     char gps_status[24] = "";
     if(app->settings.gps_enabled) {
         if(!app->gps) {
-            snprintf(gps_status, sizeof(gps_status), "GPS UART?");
+            snprintf(gps_status, sizeof(gps_status), "GPS UART busy");
         } else {
             WmbusGpsFix position;
             if(wmbus_gps_snapshot(app->gps, &position) && position.fix) {
