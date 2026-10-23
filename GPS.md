@@ -54,8 +54,16 @@ checksums; GPS needs sky visibility and may take minutes to lock.
 4. Return to scan. Footer reads `GPS no fix` until valid fix,
    `GPS FIX OK` on fix, and `GPS FIX+LOG` shortly after a telegram
    with fresh GPS data was successfully written.
-5. If `GPS UART?` appears, the USART port could not be acquired.
-   Restart GPS UART after freeing the port.
+5. If `GPS UART busy` appears, the USART handle could not be acquired.
+   The app now temporarily disables the system Expansion Modules service
+   before opening USART and restores it after closing GPS. If USART is
+   still busy because of some other service, switch GPS UART Off then On,
+   and close other UART apps. Alternatively, test with the system setting
+   **Settings > Expansion Modules > Listen UART > None**.
+6. `GPS no fix` is a different situation: the UART handle is present,
+   but no fresh valid GPS RMC position has been parsed yet. If another
+   GPS app can fix quickly on this wiring, inspect baud rate and NMEA
+   reception rather than leaving the GPS outdoors indefinitely.
 
 The preference is stored at `/ext/apps_data/wmbuster/settings.cfg`.
 GPS defaults to Off for existing installations.
