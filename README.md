@@ -153,6 +153,8 @@ detected the app falls back to the internal radio.
 - **[Project page](https://i12bp8.github.io/wmbuster/)** — landing page,
   screenshots, install steps.
 - **[CHANGELOG](CHANGELOG.md)** — release notes, version-by-version.
+- **[GPS](GPS.md)** — optional UART GNSS module, fix status and geotagged logs.
+- **[Driver audit](DRIVER_AUDIT.md)** — verified MVT corrections and remaining caveats.
 - **[DISCLAIMER](DISCLAIMER.md)** — full legal terms, prohibited use,
   spectrum / AES policy.
 - **[drivers/CONTRIBUTING.md](drivers/CONTRIBUTING.md)** — how to add a

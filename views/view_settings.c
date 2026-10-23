@@ -3,6 +3,7 @@
 
 #include "../wmbus_app_i.h"
 #include "../settings_store.h"
+#include "../gps/gps_receiver.h"
 #include <stdio.h>
 
 static const char* k_mode_names[]   = { "T1", "C1", "T+C", "S1" };
@@ -78,6 +79,21 @@ static void on_led_change(VariableItem* it) {
     wmbus_settings_save(app);
 }
 
+static void on_gps_change(VariableItem* it) {
+    WmbusApp* app = variable_item_get_context(it);
+    bool enable = variable_item_get_current_value_index(it) != 0;
+    if(enable && !app->settings.gps_enabled) {
+        app->gps = wmbus_gps_start();
+    } else if(!enable && app->settings.gps_enabled) {
+        if(app->gps) wmbus_gps_stop(app->gps);
+        app->gps = NULL;
+    }
+    app->settings.gps_enabled = enable;
+    app->gps_last_log_ok = false;
+    variable_item_set_current_value_text(it, k_toggle[enable]);
+    wmbus_settings_save(app);
+}
+
 void wmbus_view_settings_enter(void* ctx) {
     WmbusApp* app = ctx;
     /* Stop the radio so mode changes apply on next start. */
@@ -120,6 +136,10 @@ void wmbus_view_settings_enter(void* ctx) {
     it = variable_item_list_add(app->var_list, "Scan LED", 2, on_led_change, app);
     variable_item_set_current_value_index(it, app->settings.led_enabled ? 1 : 0);
     variable_item_set_current_value_text(it, k_toggle[app->settings.led_enabled]);
+
+    it = variable_item_list_add(app->var_list, "GPS UART", 2, on_gps_change, app);
+    variable_item_set_current_value_index(it, app->settings.gps_enabled ? 1 : 0);
+    variable_item_set_current_value_text(it, k_toggle[app->settings.gps_enabled]);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, WmbusViewSettings);
 }

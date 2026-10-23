@@ -14,6 +14,7 @@
 #include "key_store.h"
 #include "meters_db.h"
 #include "logger.h"
+#include "gps/gps_receiver.h"
 #include "settings_store.h"
 #include "views/scan_canvas.h"
 #include "views/detail_canvas.h"
@@ -52,8 +53,13 @@ extern void wmbus_view_meters_refresh(WmbusApp* app);
 static void on_tick_event(void* ctx) {
     WmbusApp* app = ctx;
     if(!app->on_meters_view) return;
-    if(app->telegram_seq == app->last_shown_seq) return;
+    static uint32_t last_gps_refresh = 0;
+    uint32_t now = furi_get_tick();
+    if(app->telegram_seq == app->last_shown_seq &&
+        (!app->settings.gps_enabled ||
+         (uint32_t)(now - last_gps_refresh) < 1000)) return;
     app->last_shown_seq = app->telegram_seq;
+    last_gps_refresh = now;
     wmbus_view_meters_refresh(app);
 }
 
@@ -151,6 +157,7 @@ WmbusApp* wmbus_app_alloc(void) {
     app->settings.sound_enabled = true;
     app->settings.vibration_enabled = true;
     app->settings.led_enabled = true;
+    app->settings.gps_enabled = false; /* no UART pin conflicts by default */
     app->settings.module    = WmbusModuleAuto;
     app->selected = -1;
 
@@ -163,6 +170,7 @@ WmbusApp* wmbus_app_alloc(void) {
     app->storage = furi_record_open(RECORD_STORAGE);
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
     wmbus_settings_load(app);
+    if(app->settings.gps_enabled) app->gps = wmbus_gps_start();
 
     app->key_store = key_store_alloc(app->storage);
     key_store_load(app->key_store);
@@ -202,6 +210,7 @@ void wmbus_app_free(WmbusApp* app) {
      * anything — leaving the cyan blink on after exit was a visible bug. */
     wmbus_scanning_stop(app);
     wmbus_worker_free(app->worker);
+    if(app->gps) wmbus_gps_stop(app->gps);
 
     view_dispatcher_remove_view(app->view_dispatcher, WmbusViewSubmenu);
     view_dispatcher_remove_view(app->view_dispatcher, WmbusViewSettings);
@@ -514,8 +523,15 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
     furi_mutex_release(app->lock);
 
     if(log_request && log_len) {
-        wmbus_log_telegram(app->storage, s_log_frame, log_len, s_log_rssi,
-                           &s_log_link, s_log_text);
+        WmbusGpsFix fix;
+        bool sampled = app->settings.gps_enabled &&
+                       wmbus_gps_snapshot(app->gps, &fix);
+        bool logged = wmbus_log_telegram(
+            app->storage, s_log_frame, log_len, s_log_rssi,
+            &s_log_link, s_log_text, sampled ? &fix : NULL,
+            app->settings.gps_enabled);
+        app->gps_last_log_ok = logged && sampled && fix.fix;
+        if(app->gps_last_log_ok) app->gps_last_log_tick = furi_get_tick();
     }
 
     /* Bump the GUI sequence counter so the tick handler redraws. */

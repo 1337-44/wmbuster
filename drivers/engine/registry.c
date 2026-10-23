@@ -17,6 +17,7 @@
 extern const WmbusDriver wmbus_drv_techem_fhkv;
 extern const WmbusDriver wmbus_drv_techem_mkradio3;
 extern const WmbusDriver wmbus_drv_techem_mkradio4;
+extern const WmbusDriver wmbus_drv_techem_mkradio4a;
 extern const WmbusDriver wmbus_drv_techem_compact5;
 extern const WmbusDriver wmbus_drv_techem_vario;
 extern const WmbusDriver wmbus_drv_techem_smoke;
@@ -146,6 +147,7 @@ const WmbusDriver* const wmbus_engine_registry[] = {
     &wmbus_drv_techem_fhkv,
     &wmbus_drv_techem_mkradio3,
     &wmbus_drv_techem_mkradio4,
+    &wmbus_drv_techem_mkradio4a,
     &wmbus_drv_techem_compact5,
     &wmbus_drv_techem_vario,
     &wmbus_drv_techem_smoke,

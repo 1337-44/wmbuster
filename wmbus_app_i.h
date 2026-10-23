@@ -105,6 +105,7 @@ typedef struct {
     bool      sound_enabled;
     bool      vibration_enabled;
     bool      led_enabled;
+    bool      gps_enabled;
     WmbusFilter filter;    /* RSSI-based filter for the meter list */
     WmbusSort   sort;      /* ordering of the meter list */
     WmbusModuleSetting module; /* internal vs external CC1101       */
@@ -167,6 +168,9 @@ struct WmbusApp {
     WmbusLinkFrame     last_link;
     char               last_text[512];
 
+    struct WmbusGpsReceiver* gps;
+    bool               gps_last_log_ok;
+    uint32_t           gps_last_log_tick;
     WmbusWorker*       worker;
     FuriMutex*         lock;
     bool               led_active;     /* set while cyan blink is running */

@@ -7,6 +7,7 @@
 #include "../protocol/wmbus_medium.h"
 #include "../drivers/engine/driver.h"
 #include "../subghz/wmbus_worker.h"
+#include "../gps/gps_receiver.h"
 #include "scan_canvas.h"
 #include <furi_hal_light.h>
 #include <furi_hal_resources.h>
@@ -231,9 +232,25 @@ static void rebuild(WmbusApp* app) {
 
     char band[16];
     format_band(app, band, sizeof(band));
+    char gps_status[24] = "";
+    if(app->settings.gps_enabled) {
+        if(!app->gps) {
+            snprintf(gps_status, sizeof(gps_status), "GPS UART?");
+        } else {
+            WmbusGpsFix position;
+            if(wmbus_gps_snapshot(app->gps, &position) && position.fix) {
+                bool saved = app->gps_last_log_ok &&
+                    (uint32_t)(furi_get_tick() - app->gps_last_log_tick) < 5000;
+                snprintf(gps_status, sizeof(gps_status),
+                         saved ? "GPS FIX+LOG" : "GPS FIX OK");
+            } else {
+                snprintf(gps_status, sizeof(gps_status), "GPS no fix");
+            }
+        }
+    }
     scan_canvas_set_meta(app->scan_canvas, band,
                          filter_label(filter), sort_label(sort),
-                         app->total_telegrams, "");
+                         app->total_telegrams, gps_status);
 }
 
 /* ---- Scene plumbing ---- */

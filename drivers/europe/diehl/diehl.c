@@ -1,10 +1,8 @@
 /* Diehl Metering family — Hydrus, Sharky, IZAR, Aerius gas, etc.
  *
  * All drivers in this file ride on the generic OMS DIF/VIF walker.
- * The IZAR water meter ships PRIOS-encrypted payloads that the
- * walker cannot decode — we register a stub driver that produces
- * a labelled hex dump until somebody ports
- * `_refs/wmbusmeters/src/driver_izar.cc` (322 lines).
+ * The separate izar.c implements the proprietary Diehl PRIOS decoder
+ * (and payload-aware identification for atypical SAP/HYD/DME headers).
  *
  * Sources of the (M,V,T) triples below:
  *   _refs/wmbusmeters/drivers/src/{hydrus,sharky,sharky774,
