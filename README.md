@@ -11,11 +11,6 @@
 [![Radio receive only](https://img.shields.io/badge/Radio-RX%20only-brightgreen)](#what-it-does-not-do)
 [![GPS branch](https://img.shields.io/badge/GPS-experimental-yellow)](https://github.com/1337-44/wmbuster/pull/2)
 
-<div align="center">
-<img src="docs/demoscan.png" alt="wM-Buster meter scan" width="45%"/> &nbsp;
-<img src="docs/demodetails.png" alt="wM-Buster meter details" width="45%"/>
-</div>
-
 > [!IMPORTANT]
 > This repository is a **modified fork**, not the original release. All credit for the base wM-Buster project goes to [i12bp8](https://github.com/i12bp8/wmbuster). The enhancements below are maintained independently. The original project's releases, website and CI status do **not** certify this fork.
 
