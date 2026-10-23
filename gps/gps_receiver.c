@@ -12,6 +12,7 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <furi_hal_power.h>
+#include <expansion/expansion.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +29,7 @@ struct WmbusGpsReceiver {
     FuriThread* thread;
     FuriStreamBuffer* rx_stream;
     FuriHalSerialHandle* serial;
+    Expansion* expansion;
     bool otg_enabled_by_gps; /* restore preexisting 5 V GPIO state on stop */
     WmbusGpsFix sample;
     bool rmc_valid;
@@ -148,8 +150,17 @@ WmbusGpsReceiver* wmbus_gps_start(void) {
     WmbusGpsReceiver* g = malloc(sizeof(*g));
     if(!g) return NULL;
     memset(g, 0, sizeof(*g));
+    /* Firmware expansion service normally listens on USART pins 13/14.
+     * Per expansion API contract we must release it BEFORE serial acquire.
+     * The user's preferred expansion settings are restored on stop/failure. */
+    g->expansion = furi_record_open(RECORD_EXPANSION);
+    expansion_disable(g->expansion);
+
     g->serial = furi_hal_serial_control_acquire(FuriHalSerialIdUsart);
     if(!g->serial) {
+        FURI_LOG_W("WmbusGPS", "USART busy even after expansion_disable");
+        expansion_enable(g->expansion);
+        furi_record_close(RECORD_EXPANSION);
         free(g);
         return NULL;
     }
@@ -161,6 +172,8 @@ WmbusGpsReceiver* wmbus_gps_start(void) {
         if(g->rx_stream) furi_stream_buffer_free(g->rx_stream);
         if(g->lock) furi_mutex_free(g->lock);
         furi_hal_serial_control_release(g->serial);
+        expansion_enable(g->expansion);
+        furi_record_close(RECORD_EXPANSION);
         free(g);
         return NULL;
     }
@@ -197,6 +210,9 @@ void wmbus_gps_stop(WmbusGpsReceiver* g) {
     furi_thread_join(g->thread);
     furi_hal_serial_deinit(g->serial);
     furi_hal_serial_control_release(g->serial);
+    /* Release USART before restoring the user's expansion-module settings. */
+    expansion_enable(g->expansion);
+    furi_record_close(RECORD_EXPANSION);
     /* Never turn off 5 V if it was enabled before wM-Buster started GPS. */
     if(g->otg_enabled_by_gps && furi_hal_power_is_otg_enabled()) {
         furi_hal_power_disable_otg();
