@@ -11,6 +11,7 @@
 
 #include <furi.h>
 #include <furi_hal.h>
+#include <furi_hal_power.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,7 @@ struct WmbusGpsReceiver {
     FuriThread* thread;
     FuriStreamBuffer* rx_stream;
     FuriHalSerialHandle* serial;
+    bool otg_enabled_by_gps; /* restore preexisting 5 V GPIO state on stop */
     WmbusGpsFix sample;
     bool rmc_valid;
     bool have_gga;
@@ -162,6 +164,22 @@ WmbusGpsReceiver* wmbus_gps_start(void) {
         free(g);
         return NULL;
     }
+    /* Many NEO-6M breakout boards are powered from GPIO pin 1 (5 V).
+     * Unlike the 3.3 V rail, this supply is off by default.
+     * Preserve an already-enabled 5 V supply: only undo our own enable. */
+    if(!furi_hal_power_is_otg_enabled()) {
+        for(uint8_t i = 0; i < 5; i++) {
+            if(furi_hal_power_enable_otg()) {
+                g->otg_enabled_by_gps = true;
+                break;
+            }
+            furi_delay_ms(50);
+        }
+        if(!g->otg_enabled_by_gps) {
+            FURI_LOG_W("WmbusGPS", "Could not enable 5V on GPIO pin 1");
+        }
+    }
+
     furi_thread_set_name(g->thread, "WmbusGPS");
     furi_thread_set_stack_size(g->thread, 2048);
     furi_thread_set_context(g->thread, g);
@@ -179,6 +197,10 @@ void wmbus_gps_stop(WmbusGpsReceiver* g) {
     furi_thread_join(g->thread);
     furi_hal_serial_deinit(g->serial);
     furi_hal_serial_control_release(g->serial);
+    /* Never turn off 5 V if it was enabled before wM-Buster started GPS. */
+    if(g->otg_enabled_by_gps && furi_hal_power_is_otg_enabled()) {
+        furi_hal_power_disable_otg();
+    }
     furi_thread_free(g->thread);
     furi_stream_buffer_free(g->rx_stream);
     furi_mutex_free(g->lock);
