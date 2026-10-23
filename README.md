@@ -1,46 +1,71 @@
-<div align="center">
+# wM-Buster Enhanced — Flipper Zero
 
-**Passive wireless M-Bus listener for the Flipper Zero**
+**Community-maintained fork of the original passive wireless M-Bus meter reader**, focused on reliable water-meter decoding, practical Flipper Zero settings and optional GPS-tagged field logs.
 
-Read EU utility meters (heat, water, gas, electricity, heat-cost allocators)
-on the 868 MHz band using only the CC1101 — internal or external module.
+**Original author and project:** [i12bp8/wmbuster](https://github.com/i12bp8/wmbuster) · [Original documentation](https://i12bp8.github.io/wmbuster/) · [Original releases](https://github.com/i12bp8/wmbuster/releases)
 
-[![CI](https://github.com/i12bp8/wmbuster/actions/workflows/ci.yml/badge.svg)](https://github.com/i12bp8/wmbuster/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/i12bp8/wmbuster?include_prereleases&sort=semver)](https://github.com/i12bp8/wmbuster/releases/latest)
+**This fork:** [1337-44/wmbuster](https://github.com/1337-44/wmbuster) · [Stable code (`main`)](https://github.com/1337-44/wmbuster/tree/main) · [Experimental GPS branch](https://github.com/1337-44/wmbuster/tree/feat/gps-session-and-driver-audit) · [GPS pull request #2](https://github.com/1337-44/wmbuster/pull/2)
+
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Flipper Zero](https://img.shields.io/badge/Flipper%20Zero-firmware%20API%2087.1-orange?logo=flipper)](https://flipperzero.one)
-[![GitHub Pages](https://img.shields.io/badge/docs-GitHub%20Pages-222?logo=github)](https://i12bp8.github.io/wmbuster/)
-[![RX only](https://img.shields.io/badge/radio-RX%20only-success)](#what-it-does-not-do)
+[![Flipper Zero](https://img.shields.io/badge/Device-Flipper%20Zero-orange)](https://flipperzero.one)
+[![Radio receive only](https://img.shields.io/badge/Radio-RX%20only-brightgreen)](#what-it-does-not-do)
+[![GPS branch](https://img.shields.io/badge/GPS-experimental-yellow)](https://github.com/1337-44/wmbuster/pull/2)
 
-[**Project page**](https://i12bp8.github.io/wmbuster/) &nbsp;·&nbsp;
-[**Releases**](https://github.com/i12bp8/wmbuster/releases) &nbsp;·&nbsp;
-[**Changelog**](CHANGELOG.md) &nbsp;·&nbsp;
-[**Disclaimer**](DISCLAIMER.md) &nbsp;·&nbsp;
-[**Contributing**](drivers/CONTRIBUTING.md)
-
-<br/>
-
-<img src="docs/demoscan.png"    alt="Live meter scan"  width="45%"/>
-&nbsp;&nbsp;
-<img src="docs/demodetails.png" alt="Per-meter detail" width="45%"/>
-
+<div align="center">
+<img src="docs/demoscan.png" alt="wM-Buster meter scan" width="45%"/> &nbsp;
+<img src="docs/demodetails.png" alt="wM-Buster meter details" width="45%"/>
 </div>
 
----
+> [!IMPORTANT]
+> This repository is a **modified fork**, not the original release. All credit for the base wM-Buster project goes to [i12bp8](https://github.com/i12bp8/wmbuster). The enhancements below are maintained independently. The original project's releases, website and CI status do **not** certify this fork.
 
 > [!CAUTION]
-> **Only use this on meters you own.** Decrypting someone else's meter
-> is illegal in most jurisdictions. The author does not condone unlawful use
-> and is not responsible for what you do with this tool. Read the full
-> [**Legal Disclaimer**](DISCLAIMER.md) before installing.
-
-> [!IMPORTANT]
-> **wM-Buster is receive-only.** It never transmits, jams, replays, or
-> spoofs. It is a passive analyser, by design.
+> **Use only with meters you own or are authorised to inspect.** Do not publish encryption keys, private meter identifiers or location histories. The application is receive-only; no transmission, jamming, replay or spoofing. See [DISCLAIMER](DISCLAIMER.md).
 
 ---
 
-## Features
+## What's different from the original?
+
+### Available on `main`
+
+| Area | Changes in this fork |
+| --- | --- |
+| **Diehl / Sappel IZAR V2** | Fixed manufacturer/version/type matching, enabled the proprietary `decode_ex` path and added PRIOS payload-aware detection where ordinary header fields misleadingly appear as e.g. `SAP Oil`. Tested with real IZAR meter reception. |
+| **Techem water meters** | Corrected MK-Radio 3 / 3a / 4 identification, including the `0x62` hot-water and `0x72` cold-water media values. Restored meaningful decoded water consumption in m³ instead of heat-meter labels. |
+| **Persistent settings** | Added SD-backed preferences in `/ext/apps_data/wmbuster/settings.cfg`, including `Log to SD`, scan mode/filter/sort/module and notification controls. |
+| **Independent alerts** | Separate, persistent **Sound**, **Vibration** and **Scan LED** on/off switches. Muting or hiding the LED does not interfere with the other alerts or radio reception. |
+| **Regression checks** | Added IZAR and Techem identification/decoder tests to help prevent these regressions. |
+
+### Experimental — `feat/gps-session-and-driver-audit` branch (not yet merged)
+
+| Area | Additional work |
+| --- | --- |
+| **Meter details** | Keeps the **MK-Radio3 / MK-Radio4** model identifier in the title and shows **`Media: Hot water` / `Media: Cold water`** as the first detail row. |
+| **GPS via GPIO UART** | Optional, persisted **GPS UART** toggle for a compatible external GNSS receiver (e.g. NEO-6M), NMEA RMC/GGA decoding, valid-fix detection and compact **GPS FIX OK / GPS FIX+LOG** status. GPS is off by default. |
+| **GPS power management** | Supports Flipper GPIO **5 V pin 1** for compatible GPS breakout boards: turns 5 V on when needed and restores the prior power state on exit. Check your board's voltage/logic levels before connecting. |
+| **Geotagged telegram logs** | Per-telegram GPS UTC time, latitude, longitude, speed, course and fix metadata (when available), while preserving raw telegrams. Missing/stale fixes produce `gps: null`. GPS coordinates describe the **Flipper's** location at reception, not the exact meter position. |
+| **Session names** | Changes opaque uptime-based `session_XXXXX.log` names to RTC-based `session_YYYY-MM-DD_HH-MM-SS.log`, with collision-safe suffixes. |
+| **Additional driver audit** | Separates the Techem MK-Radio4a OMS variant from the MK-Radio4 compact-frame decoder and documents other MVT findings. |
+
+The GPS branch is **work in progress**: it needs an `ufbt` build and verification with your particular UART GPS and CC1101 hardware before merging. See [GPS wiring and logging](https://github.com/1337-44/wmbuster/blob/feat/gps-session-and-driver-audit/GPS.md) and the [driver audit](https://github.com/1337-44/wmbuster/blob/feat/gps-session-and-driver-audit/DRIVER_AUDIT.md).
+
+### Build this fork
+
+```sh
+git clone https://github.com/1337-44/wmbuster.git
+cd wmbuster
+ufbt
+
+# To test the optional GPS functionality instead:
+git switch feat/gps-session-and-driver-audit
+ufbt
+```
+
+The original upstream `.fap` releases **do not** include these fork-specific changes.
+
+---
+
+## Original project's capabilities
 
 - **All four EU modes** — T1, C1, T+C combined, S1.
   T+C is the default and decodes both T-mode (3-of-6) and C-mode (NRZ
@@ -80,10 +105,10 @@ on the 868 MHz band using only the CC1101 — internal or external module.
 ## Install
 
 > [!TIP]
-> Pre-built `.fap` files for every release are attached to the
-> [**Releases**](https://github.com/i12bp8/wmbuster/releases) page. Drop
-> `wmbuster.fap` into `/ext/apps/Sub-GHz/` on your Flipper's SD card and
-> launch from `Apps → Sub-GHz → wM-Buster`.
+> To install **this fork's enhancements**, build the chosen branch with `ufbt`
+> and copy the resulting `dist/wmbuster.fap` to `/ext/apps/Sub-GHz/` on your
+> Flipper's SD card. The [original releases](https://github.com/i12bp8/wmbuster/releases)
+> are maintained by the upstream author and do not contain our fixes.
 
 ### Build from source
 
@@ -93,7 +118,7 @@ pip install --upgrade ufbt
 ufbt update --channel=release
 
 # Clone & build
-git clone https://github.com/i12bp8/wmbuster.git
+git clone https://github.com/1337-44/wmbuster.git
 cd wmbuster
 ufbt                # produces dist/wmbuster.fap
 ufbt launch         # flash + start on a connected Flipper
