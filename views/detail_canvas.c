@@ -220,14 +220,14 @@ static void draw_raw(Canvas* c, const DetailModel* m) {
     }
 }
 
-/* Full 9-pixel inverse label; text baseline moved down one pixel. */
+/* Inverse label without a horizontal top edge; one row lower for clean glyphs. */
 static void draw_ok_hint(Canvas* c, const DetailModel* m) {
     canvas_set_font(c, FontSecondary);
     const char* hint = m->display_mode == 0 ? "OK raw" :
                        m->display_mode == 1 ? "OK big" : "OK fields";
     int w = canvas_string_width(c, hint);
     canvas_set_color(c, ColorBlack);
-    canvas_draw_box(c, 128 - w - 5, 54, w + 5, 10);
+    canvas_draw_box(c, 128 - w - 5, 55, w + 5, 9);
     canvas_set_color(c, ColorWhite);
     canvas_draw_str(c, 128 - w - 3, 63, hint);
     canvas_set_color(c, ColorBlack);
