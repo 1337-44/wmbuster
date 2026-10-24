@@ -45,10 +45,21 @@ void wmbus_settings_load(WmbusApp* app) {
         bool from_v1 = n >= 10 && strncmp(buf, "version=1\n", 10) == 0;
         bool from_v2 = n >= 10 && strncmp(buf, "version=2\n", 10) == 0;
         if(from_v1 || from_v2) {
-            char* line = strtok(buf, "\r\n");
-            while(line) {
-                parse_setting(&app->settings, line);
-                line = strtok(NULL, "\r\n");
+            /* Firmware FAP API does not export strtok().
+             * Parse CR/LF-delimited lines in-place without libc tokenizer
+             * dependencies or shared strtok state. */
+            char* p = buf;
+            char* end = buf + n;
+            while(p < end && *p) {
+                char* start = p;
+                while(p < end && *p && *p != '\r' && *p != '\n') ++p;
+                char sep = p < end ? *p : '\0';
+                if(p < end) *p++ = '\0';
+                if(start != p - (sep != '\0' ? 1 : 0)) {
+                    parse_setting(&app->settings, start);
+                }
+                (void)sep;
+                while(p < end && (*p == '\r' || *p == '\n')) ++p;
             }
             /* Old experimental builds used 15 min / 1 L as a very
              * permissive leak threshold, causing normal-use alerts.
