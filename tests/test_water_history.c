@@ -84,6 +84,28 @@ static void test_short_old_threshold(void) {
     }
 }
 
+static void test_mean_telegram_interval(void) {
+    WmbusWaterHistory h = {0};
+    assert(wmbus_water_avg_interval_ms(&h) == 0);
+    assert(!wmbus_water_update(&h, 1000, 10000, 120, 5));
+    assert(wmbus_water_avg_interval_ms(&h) == 0);
+    for(uint32_t i = 1; i < 26; ++i) {
+        /* 8-second reception cadence and zero water consumption. */
+        assert(!wmbus_water_update(&h, 1000, 10000 + i * 8000, 120, 5));
+        assert(wmbus_water_avg_interval_ms(&h) == 8000);
+    }
+    assert(h.count == WMBUS_WATER_POINTS); /* ring wraps without changing mean */
+    /* Delayed packet increases the mean; 1.5 * avg separates missing
+     * telegram state from perfectly normal zero-consumption readings. */
+    assert(!wmbus_water_update(&h, 1000, 10000 + 26 * 8000 + 4000, 120, 5));
+    assert(wmbus_water_avg_interval_ms(&h) > 8000);
+
+    WmbusWaterHistory wrap = {0};
+    assert(!wmbus_water_update(&wrap, 5, UINT32_MAX - 3999, 120, 5));
+    assert(!wmbus_water_update(&wrap, 5, 4000, 120, 5));
+    assert(wmbus_water_avg_interval_ms(&wrap) == 8000);
+}
+
 static void test_recent_flow_survives_leak_reset(void) {
     WmbusWaterHistory h = {0};
     assert(!wmbus_water_update(&h, 2000, 10000, 120, 5));
@@ -133,6 +155,7 @@ int main(void) {
     test_fast_constant_consumption();
     test_short_old_threshold();
     test_recent_flow_survives_leak_reset();
+    test_mean_telegram_interval();
     test_radio_outage_breaks_sequence();
     test_short_events_and_rate();
     puts("Water history / leak detector tests passed.");
