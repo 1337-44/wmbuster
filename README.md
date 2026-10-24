@@ -38,8 +38,11 @@ settings and keys remain at `/ext/apps_data/wmbuster/`.
 - **BIG**: main m³ reading in a shadowed rounded frame, smoothed
   **L/h** and **L/min**, and full-width **bar chart** of water consumption
   increments (no BIG title).
-- **Leak detect** Off/On with scope **All / Watched**, plus configurable
-  threshold and time window. Default detection is Off.
+- **Leak detect** Off/On with scope **All / Watched** (Watched by default),
+  conservative anti-false-positive detection (120 minutes, 5 L, low-flow
+  filter and burst rejection). BIG now shows **LEAK !!!** on detection.
+  Short OK cycles detail pages, while long OK exclusively toggles backlight.
+  Default leak detection is Off.
 
 See [Watched meters & controls](WATCHED_AND_CONTROLS.md),
 [Big display & leak heuristics](BIG_AND_LEAKS.md), and
