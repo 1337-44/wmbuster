@@ -24,6 +24,15 @@ void wmbus_worker_start(WmbusWorker* w, WmbusMode mode);
 void wmbus_worker_stop(WmbusWorker* w);
 bool wmbus_worker_is_running(const WmbusWorker* w);
 
+/* Observed hardware state, not the requested Settings choice. */
+typedef enum {
+    WmbusRadioStarting = 0,
+    WmbusRadioInternal,
+    WmbusRadioExternal,
+    WmbusRadioUnavailable,
+} WmbusRadioState;
+WmbusRadioState wmbus_worker_radio_state(const WmbusWorker* w);
+
 /* Inject a synthetic raw frame (3-of-6 already decoded, CRC included).
  * Used by the "Test Decode" menu and unit tests. */
 void wmbus_worker_inject(WmbusWorker* w, const uint8_t* raw, size_t len, int8_t rssi);
