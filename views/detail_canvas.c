@@ -277,9 +277,10 @@ static void draw_big(Canvas* c, const DetailModel* m) {
         snprintf(lph, sizeof(lph), "+%lu L/h", (unsigned long)rate);
         /* One decimal with integer arithmetic; both derive from the
          * same smoothed rate, avoiding inconsistent pair values. */
+        uint64_t tenths_per_min = ((uint64_t)rate * 10 + 30) / 60;
         snprintf(lpm, sizeof(lpm), "+%lu.%01lu L/min",
-                 (unsigned long)(rate / 60),
-                 (unsigned long)(((rate % 60) * 10 + 30) / 60));
+                 (unsigned long)(tenths_per_min / 10),
+                 (unsigned long)(tenths_per_min % 10));
     }
     canvas_draw_str(c, 2, 48, lph);
     if(lpm[0]) canvas_draw_str(c, 69, 48, lpm);
