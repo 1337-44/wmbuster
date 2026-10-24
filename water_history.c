@@ -25,6 +25,7 @@ static bool read_value(const char* p, uint32_t* out) {
     if(p[0] != 'm' || p[1] != '3') return false;
     p += 2;
     if(*p && *p != '\r' && *p != '\n' && *p != ' ' && *p != '\t') return false;
+    if(units > (UINT32_MAX - fraction) / 1000) return false;
     *out = units * 1000 + fraction;
     return true;
 }
