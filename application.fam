@@ -1,5 +1,5 @@
 App(
-    appid="wmbuster",
+    appid="wmbuster_plus",
     name="wM-buster+",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="wmbus_app",
