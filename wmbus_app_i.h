@@ -162,6 +162,10 @@ struct WmbusApp {
     FuriString*        text_buf;
     Storage*           storage;
     NotificationApp*   notifications;
+    /* Global physical OK long-press subscription (all scenes). */
+    FuriPubSub*        input_events;
+    FuriPubSubSubscription* input_subscription;
+    bool               backlight_held; /* session-only, defaults to auto */
 
     WmbusSettings      settings;
     WmbusMeter         meters[WMBUS_MAX_METERS];
