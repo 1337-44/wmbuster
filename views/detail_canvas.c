@@ -227,9 +227,17 @@ static void draw_ok_hint(Canvas* c, const DetailModel* m) {
                        m->display_mode == 1 ? "OK big" : "OK fields";
     int w = canvas_string_width(c, hint);
     canvas_set_color(c, ColorBlack);
-    canvas_draw_box(c, 128 - w - 5, 55, w + 5, 9);
-    canvas_set_color(c, ColorWhite);
-    canvas_draw_str(c, 128 - w - 3, 63, hint);
+    if(m->display_mode == 2) {
+        /* BIG uses the top-right label, preserving the full-width
+         * consumption bar chart all the way to LCD pixel x=127. */
+        canvas_draw_box(c, 128 - w - 5, 0, w + 5, 10);
+        canvas_set_color(c, ColorWhite);
+        canvas_draw_str(c, 128 - w - 3, 8, hint);
+    } else {
+        canvas_draw_box(c, 128 - w - 5, 55, w + 5, 9);
+        canvas_set_color(c, ColorWhite);
+        canvas_draw_str(c, 128 - w - 3, 63, hint);
+    }
     canvas_set_color(c, ColorBlack);
 }
 
@@ -237,57 +245,87 @@ static void draw_ok_hint(Canvas* c, const DetailModel* m) {
  * rising segments indicate actual new volume rather than RF packets. */
 static void draw_big(Canvas* c, const DetailModel* m) {
     canvas_set_color(c, ColorBlack);
-    canvas_set_font(c, FontSecondary);
+    /* Slight right/bottom offset gives the reading frame a 1px shadow. */
+    canvas_draw_line(c, 5, 39, 126, 39);
+    canvas_draw_line(c, 126, 14, 126, 39);
+    elements_slightly_rounded_frame(c, 2, 10, 123, 28);
     if(!m->water.valid) {
-        canvas_draw_str_aligned(c, 64, 28, AlignCenter, AlignCenter, "No m3 reading");
-        canvas_draw_str(c, 2, 49, "Waiting for data");
+        canvas_set_font(c, FontSecondary);
+        canvas_draw_str_aligned(c, 64, 27, AlignCenter, AlignCenter, "No m3 reading");
+        canvas_draw_str(c, 2, 48, "Waiting for data");
         return;
     }
     char number[24];
-    uint32_t l = m->water.last_litres;
+    uint32_t litres = m->water.last_litres;
     snprintf(number, sizeof(number), "%lu.%03lu",
-             (unsigned long)(l / 1000), (unsigned long)(l % 1000));
+             (unsigned long)(litres / 1000), (unsigned long)(litres % 1000));
     canvas_set_font(c, FontBigNumbers);
-    if(canvas_string_width(c, number) > 103) canvas_set_font(c, FontPrimary);
-    canvas_draw_str(c, 2, 35, number);
+    if(canvas_string_width(c, number) > 98) canvas_set_font(c, FontPrimary);
+    canvas_draw_str(c, 6, 33, number);
     canvas_set_font(c, FontSecondary);
-    canvas_draw_str(c, 110, 34, "m3");
+    canvas_draw_str(c, 107, 34, "m3");
 
-    uint32_t rate = wmbus_water_rate_lph(&m->water);
     uint32_t now = furi_get_tick();
-    uint8_t latest_idx = (uint8_t)((m->water.next + WMBUS_WATER_POINTS - 1) % WMBUS_WATER_POINTS);
-    bool stale = (uint32_t)(now - m->water.ticks[latest_idx]) > 60000UL;
-    char trend[26];
-    if(stale) snprintf(trend, sizeof(trend), "No recent RX");
-    else snprintf(trend, sizeof(trend), "+%lu L/h", (unsigned long)rate);
-    canvas_draw_str(c, 2, 45, trend);
-    if(!stale && m->leak_enabled && m->water.leak_active) {
-        canvas_draw_str(c, 69, 45, "!LEAK!");
-    } else if(!stale && wmbus_water_recent_flow(&m->water, now)) {
-        unsigned phase = (unsigned)((furi_get_tick() / 400) % 3);
-        canvas_draw_str(c, 74, 45, phase == 0 ? "FLOW." :
-                                      phase == 1 ? "FLOW.." : "FLOW...");
+    uint8_t latest = (uint8_t)((m->water.next + WMBUS_WATER_POINTS - 1) % WMBUS_WATER_POINTS);
+    bool stale = (uint32_t)(now - m->water.ticks[latest]) > 60000UL;
+    uint32_t rate = wmbus_water_rate_lph(&m->water);
+    char lph[22], lpm[22];
+    if(stale) {
+        snprintf(lph, sizeof(lph), "No recent RX");
+        lpm[0] = 0;
+    } else {
+        snprintf(lph, sizeof(lph), "+%lu L/h", (unsigned long)rate);
+        /* One decimal with integer arithmetic; both derive from the
+         * same smoothed rate, avoiding inconsistent pair values. */
+        uint64_t tenths_per_min = ((uint64_t)rate * 10 + 30) / 60;
+        snprintf(lpm, sizeof(lpm), "+%lu.%01lu L/min",
+                 (unsigned long)(tenths_per_min / 10),
+                 (unsigned long)(tenths_per_min % 10));
     }
+    canvas_draw_str(c, 2, 48, lph);
+    if(lpm[0]) canvas_draw_str(c, 69, 48, lpm);
+
+    /* Full-width bars show each received interval's positive increment.
+     * Bars reflect radio measurements, not an inferred continuous flow. */
     if(m->water.count > 1) {
-        uint32_t min = UINT32_MAX, max = 0;
-        for(size_t i = 0; i < m->water.count; i++) {
-            uint32_t v = m->water.litres[i];
-            if(v < min) min = v;
-            if(v > max) max = v;
+        uint8_t first = m->water.count == WMBUS_WATER_POINTS ? m->water.next : 0;
+        uint32_t biggest = 1;
+        for(size_t i = 1; i < m->water.count; i++) {
+            uint8_t prev = (uint8_t)((first + i - 1) % WMBUS_WATER_POINTS);
+            uint8_t cur  = (uint8_t)((first + i) % WMBUS_WATER_POINTS);
+            if(m->water.litres[cur] >= m->water.litres[prev]) {
+                uint32_t diff = m->water.litres[cur] - m->water.litres[prev];
+                if(diff > biggest) biggest = diff;
+            }
         }
-        uint8_t first = m->water.count == WMBUS_WATER_POINTS ?
-                        m->water.next : 0;
-        int prev_x = 2, prev_y = 53;
         for(size_t i = 0; i < m->water.count; i++) {
-            uint8_t pos = (uint8_t)((first + i) % WMBUS_WATER_POINTS);
-            uint32_t v = m->water.litres[pos];
-            int x = 2 + (int)(i * 120 / (m->water.count - 1));
-            int y = max > min ? 53 - (int)(((uint64_t)(v - min) * 7) / (max - min)) : 53;
-            if(i) canvas_draw_line(c, prev_x, prev_y, x, y);
-            prev_x = x;
-            prev_y = y;
+            uint8_t cur = (uint8_t)((first + i) % WMBUS_WATER_POINTS);
+            uint32_t diff = 0;
+            if(i) {
+                uint8_t prev = (uint8_t)((first + i - 1) % WMBUS_WATER_POINTS);
+                if(m->water.litres[cur] >= m->water.litres[prev])
+                    diff = m->water.litres[cur] - m->water.litres[prev];
+            }
+            int x = (int)(i * 128 / m->water.count);
+            int next_x = (int)((i + 1) * 128 / m->water.count);
+            int width = next_x - x;
+            int height = (int)(((uint64_t)diff * 11) / biggest);
+            if(height > 0 && width > 0)
+                canvas_draw_box(c, x, 64 - height, (size_t)width, (size_t)height);
         }
     }
+    if(!stale && m->leak_enabled && m->water.leak_active) {
+        canvas_set_color(c, ColorWhite);
+        canvas_draw_box(c, 37, 51, 54, 12);
+        canvas_set_color(c, ColorBlack);
+        canvas_draw_frame(c, 37, 51, 54, 12);
+        canvas_set_font(c, FontSecondary);
+        canvas_draw_str(c, 45, 60, "!LEAK!");
+    }
+    /* A blinking pixel by the flow rates signals freshly observed flow,
+     * leaving the entire 128px bottom strip for the bar chart. */
+    if(!stale && wmbus_water_recent_flow(&m->water, now) &&
+       (now / 500) % 2 == 0) canvas_draw_disc(c, 121, 44, 2);
 }
 
 static void detail_view_draw(Canvas* c, void* m_) {
@@ -300,8 +338,12 @@ static void detail_view_draw(Canvas* c, void* m_) {
         canvas_draw_box(c, 0, 0, 128, 10);
         canvas_set_color(c, ColorWhite);
         canvas_set_font(c, FontSecondary);
-        canvas_draw_str(c, 2, 8, m->id_line);
-        canvas_draw_str(c, 108, 8, "BIG");
+        char short_id[24];
+        strncpy(short_id, m->id_line, sizeof(short_id) - 1);
+        short_id[sizeof(short_id)-1] = 0;
+        while(short_id[0] && canvas_string_width(c, short_id) > 75)
+            short_id[strlen(short_id)-1] = 0;
+        canvas_draw_str(c, 2, 8, short_id);
         canvas_set_color(c, ColorBlack);
         draw_big(c, m);
     } else {
@@ -437,4 +479,9 @@ void detail_canvas_set_water(
             else memset(&m->water, 0, sizeof(m->water));
             m->leak_enabled = leak_enabled;
         }, true);
+}
+
+void detail_canvas_set_big(DetailCanvas* dc) {
+    with_view_model(dc->view, DetailModel * m,
+        { m->display_mode = 2; }, true);
 }

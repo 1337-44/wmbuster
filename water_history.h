@@ -19,6 +19,8 @@ typedef struct {
     uint8_t chain_events;
     bool valid;
     bool leak_active;
+    uint32_t stable_lph; /* smoothed recent average for BIG display */
+    bool rate_primed;
 } WmbusWaterHistory;
 
 /* Only a decoded row with 'Now' or 'Total' AND 'm3' is accepted. */

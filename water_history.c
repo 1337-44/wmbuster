@@ -45,11 +45,23 @@ bool wmbus_water_parse(const char* text, uint32_t* litres) {
     return false;
 }
 
+static uint32_t raw_rate(const WmbusWaterHistory* h);
+
 static void add_sample(WmbusWaterHistory* h, uint32_t litres, uint32_t tick) {
     h->litres[h->next] = litres;
     h->ticks[h->next] = tick;
     h->next = (uint8_t)((h->next + 1) % WMBUS_WATER_POINTS);
     if(h->count < WMBUS_WATER_POINTS) h->count++;
+    if(h->count >= 2) {
+        uint32_t raw = raw_rate(h);
+        if(!h->rate_primed) {
+            h->stable_lph = raw;
+            h->rate_primed = true;
+        } else {
+            h->stable_lph = (uint32_t)(((uint64_t)h->stable_lph * 7 +
+                                     (uint64_t)raw * 3 + 5) / 10);
+        }
+    }
 }
 
 bool wmbus_water_update(
@@ -80,7 +92,11 @@ bool wmbus_water_update(
         h->chain_start_tick = 0;
         h->last_increase_tick = 0;
         h->leak_active = false;
-        if(reset || inc > 10000) h->count = h->next = 0;
+        if(reset || inc > 10000) {
+            h->count = h->next = 0;
+            h->stable_lph = 0;
+            h->rate_primed = false;
+        }
     }
     if(!reset && inc > 0 && inc <= 10000) {
         if(h->chain_events == 0 || h->last_increase_tick == 0 ||
@@ -111,7 +127,7 @@ bool wmbus_water_update(
     return false;
 }
 
-uint32_t wmbus_water_rate_lph(const WmbusWaterHistory* h) {
+static uint32_t raw_rate(const WmbusWaterHistory* h) {
     if(!h || h->count < 2) return 0;
     uint8_t newest = (uint8_t)((h->next + WMBUS_WATER_POINTS - 1) % WMBUS_WATER_POINTS);
     uint8_t oldest = h->count == WMBUS_WATER_POINTS ? h->next : 0;
@@ -120,6 +136,10 @@ uint32_t wmbus_water_rate_lph(const WmbusWaterHistory* h) {
     uint64_t scaled = (uint64_t)(h->litres[newest] - h->litres[oldest]) * 3600000ULL;
     uint64_t rate = scaled / elapsed;
     return rate > UINT32_MAX ? UINT32_MAX : (uint32_t)rate;
+}
+
+uint32_t wmbus_water_rate_lph(const WmbusWaterHistory* h) {
+    return h && h->rate_primed ? h->stable_lph : 0;
 }
 
 bool wmbus_water_recent_flow(const WmbusWaterHistory* h, uint32_t now_ms) {

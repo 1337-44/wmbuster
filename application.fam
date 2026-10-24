@@ -1,6 +1,6 @@
 App(
-    appid="wmbuster",
-    name="wM-Buster",
+    appid="wmbuster_plus",
+    name="wM-buster+",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="wmbus_app",
     requires=["gui", "storage", "dialogs"],
@@ -19,6 +19,7 @@ App(
         "gps/minmea.c",
         "meters_db.c",
         "water_history.c",
+        "watched_meters.c",
         "key_store.c",
         "protocol/wmbus_3of6.c",
         "protocol/wmbus_manchester.c",

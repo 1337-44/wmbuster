@@ -53,6 +53,8 @@ void detail_canvas_set_raw(DetailCanvas* dc,
 
 /* Three OK-cycled screens: fields -> raw -> big -> fields. */
 void detail_canvas_reset_mode(DetailCanvas* dc);
+/* Open BIG directly for a watched meter after its first telegram. */
+void detail_canvas_set_big(DetailCanvas* dc);
 void detail_canvas_set_water(
     DetailCanvas* dc, const WmbusWaterHistory* water,
     bool leak_enabled);

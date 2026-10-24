@@ -1,4 +1,4 @@
-# wM-Buster Enhanced — Flipper Zero
+# wM-buster+ — enhanced Flipper Zero wM-Bus reader
 
 **Community-maintained fork of the original passive wireless M-Bus meter reader**, focused on reliable water-meter decoding, practical Flipper Zero settings and optional GPS-tagged field logs.
 
@@ -26,18 +26,25 @@
 
 ## Experimental additions in this branch
 
-This branch adds a third **OK big** detail screen with larger m³
-readings, live trend, animated FLOW status and a short micro-chart;
-the bottom-right OK label is inverted without the upper edge. **Hold OK**
-anywhere in the app to toggle display backlight always-on; auto timeout
-is the default and is restored on app exit.
-It also offers optional configurable **continuous-flow / suspected leak**
-monitoring (15/30/60/120-minute window and independent warning alarm).
-Neither detection nor alarm is enabled by default.
+**wM-buster+** has an independent app ID (`wmbuster_plus`) so it can
+coexist in Flipper's menu with the original `wmbuster`; enhanced
+settings and keys remain at `/ext/apps_data/wmbuster/`.
 
-See **[Big display and leak warnings](BIG_AND_LEAKS.md)** and
-[Pull Request #3](https://github.com/1337-44/wmbuster/pull/3).
-This feature is not merged into `main` and is not a certified water-leak sensor.
+- **Hold Right (>)** on a meter in Scan to watch/unwatch it. The
+  watchlist survives restarts and a single centred pixel marks it.
+  On next startup, the first watched telegram opens BIG automatically.
+- **Hold OK** anywhere for always-on backlight / automatic timeout.
+  Both long-press toggles have a confirmation popup.
+- **BIG**: main m³ reading in a shadowed rounded frame, smoothed
+  **L/h** and **L/min**, and full-width **bar chart** of water consumption
+  increments (no BIG title).
+- **Leak detect** Off/On with scope **All / Watched**, plus configurable
+  threshold and time window. Default detection is Off.
+
+See [Watched meters & controls](WATCHED_AND_CONTROLS.md),
+[Big display & leak heuristics](BIG_AND_LEAKS.md), and
+[GPS integration](GPS.md). Experimental and not merged into `main`.
+Not a certified leak/safety system.
 
 ---
 
@@ -123,7 +130,7 @@ The original upstream `.fap` releases **do not** include these fork-specific cha
 
 > [!TIP]
 > To install **this fork's enhancements**, build the chosen branch with `ufbt`
-> and copy the resulting `dist/wmbuster.fap` to `/ext/apps/Sub-GHz/` on your
+> and copy the resulting `dist/wmbuster_plus.fap` to `/ext/apps/Sub-GHz/` on your
 > Flipper's SD card. The [original releases](https://github.com/i12bp8/wmbuster/releases)
 > are maintained by the upstream author and do not contain our fixes.
 
@@ -137,7 +144,7 @@ ufbt update --channel=release
 # Clone & build
 git clone https://github.com/1337-44/wmbuster.git
 cd wmbuster
-ufbt                # produces dist/wmbuster.fap
+ufbt                # produces dist/wmbuster_plus.fap
 ufbt launch         # flash + start on a connected Flipper
 ```
 

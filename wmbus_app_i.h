@@ -16,8 +16,9 @@
 
 #include "protocol/wmbus_link.h"
 #include "water_history.h"
+#include "watched_meters.h"
 
-#define WMBUS_APP_NAME           "wM-Buster"
+#define WMBUS_APP_NAME           "wM-buster+"
 #define WMBUS_APP_DATA_DIR       EXT_PATH("apps_data/wmbuster")
 #define WMBUS_APP_KEYS_FILE      WMBUS_APP_DATA_DIR "/keys.csv"
 #define WMBUS_APP_SETTINGS_FILE  WMBUS_APP_DATA_DIR "/settings.cfg"
@@ -109,7 +110,7 @@ typedef struct {
     bool      led_enabled;
     bool      gps_enabled;
     bool      leak_enabled;
-    bool      leak_alarm_enabled;
+    uint8_t   leak_scope; /* 0=All meters, 1=Watched only */
     uint8_t   leak_window_index;
     uint8_t   leak_min_index;
     WmbusFilter filter;    /* RSSI-based filter for the meter list */
@@ -169,6 +170,12 @@ struct WmbusApp {
 
     WmbusSettings      settings;
     WmbusMeter         meters[WMBUS_MAX_METERS];
+    WmbusWatched       watched[WMBUS_MAX_WATCHED];
+    size_t             watched_count;
+    bool               auto_watch_pending;
+    bool               auto_watch_queued;
+    uint32_t           popup_return_view;
+    bool               popup_active;
     size_t             meter_count;
     int                selected;     /* index into meters[] */
 
@@ -221,6 +228,7 @@ void wmbus_app_on_telegram(
 /* Idempotent helpers: start/stop the SubGHz worker + cyan scan LED.
  * Used by the Meters and Detail views so navigation between them does not
  * tear the radio down. */
+void wmbus_show_popup(WmbusApp* app, const char* title, const char* text);
 void wmbus_scanning_start(WmbusApp* app);
 void wmbus_scanning_stop(WmbusApp* app);
 
