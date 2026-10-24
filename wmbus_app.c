@@ -35,6 +35,8 @@
 #include <string.h>
 
 #define WMBUS_EVENT_TOGGLE_BACKLIGHT 0xBACE0001UL
+#define WMBUS_EVENT_WATCH_BIG        0xBACE0002UL
+#define WMBUS_EVENT_POPUP_END        0xBACE0003UL
 
 /* Input service sends this from its own thread; post to the GUI dispatcher
  * so the backlight state is only changed on the application GUI thread.
@@ -153,10 +155,52 @@ static const SceneManagerHandlers k_scene_handlers = {
     .scene_num          = WmbusScene_Count,
 };
 
+/* Show a transient popup for each long-press toggle. Timer completion
+ * returns through the GUI dispatcher before switching to the active scene. */
+static void wmbus_popup_end(void* context) {
+    WmbusApp* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, WMBUS_EVENT_POPUP_END);
+}
+
+void wmbus_show_popup(WmbusApp* app, const char* title, const char* text) {
+    if(!app || !app->popup) return;
+    uint32_t scene = scene_manager_get_current_scene(app->scene_manager);
+    app->popup_return_view = scene == WmbusSceneMeters ? WmbusViewScan :
+                             scene == WmbusSceneDetail ? WmbusViewDetailCanvas :
+                             scene == WmbusSceneSettings ? WmbusViewSettings :
+                             scene == WmbusSceneKeys ? WmbusViewDetail :
+                             scene == WmbusSceneAbout ? WmbusViewAbout : WmbusViewSubmenu;
+    app->popup_active = true;
+    popup_reset(app->popup);
+    popup_set_header(app->popup, title, 64, 19, AlignCenter, AlignCenter);
+    popup_set_text(app->popup, text, 64, 41, AlignCenter, AlignCenter);
+    popup_set_context(app->popup, app);
+    popup_set_callback(app->popup, wmbus_popup_end);
+    popup_set_timeout(app->popup, 1200);
+    popup_enable_timeout(app->popup);
+    view_dispatcher_switch_to_view(app->view_dispatcher, WmbusViewPopup);
+}
+
 /* ------------- view_dispatcher event glue ------------- */
 static bool on_custom_event(void* ctx, uint32_t evt) {
     WmbusApp* app = ctx;
+    if(evt == WMBUS_EVENT_POPUP_END) {
+        if(app->popup_active) {
+            app->popup_active = false;
+            view_dispatcher_switch_to_view(app->view_dispatcher, app->popup_return_view);
+        }
+        return true;
+    }
+    if(evt == WMBUS_EVENT_WATCH_BIG) {
+        app->auto_watch_queued = false;
+        if(app->on_meters_view && app->selected >= 0) {
+            scene_manager_next_scene(app->scene_manager, WmbusSceneDetail);
+            detail_canvas_set_big(app->detail_canvas);
+        }
+        return true;
+    }
     if(evt == WMBUS_EVENT_TOGGLE_BACKLIGHT) {
+        if(app->popup_active) return true;
         app->backlight_held = !app->backlight_held;
         /* The backlight lock is temporary and applies to this app session.
          * Ordinary OK Short events and navigation remain unchanged. */
@@ -166,6 +210,8 @@ static bool on_custom_event(void* ctx, uint32_t evt) {
                                   &sequence_display_backlight_enforce_auto);
         FURI_LOG_I("wM-Buster", "Backlight always-on: %s",
                    app->backlight_held ? "ON" : "OFF");
+        wmbus_show_popup(app, app->backlight_held ? "Backlight ON" : "Backlight AUTO",
+                         app->backlight_held ? "Screen stays on" : "Normal timeout");
         return true;
     }
     /* Forward to the active scene; meters scene uses this to refresh. */
@@ -193,7 +239,7 @@ WmbusApp* wmbus_app_alloc(void) {
     app->settings.led_enabled = true;
     app->settings.gps_enabled = false; /* no UART pin conflicts by default */
     app->settings.leak_enabled = false; /* explicitly opt in */
-    app->settings.leak_alarm_enabled = false;
+    app->settings.leak_scope = 0; /* All; Leak detect Off by default */
     app->settings.leak_window_index = 1; /* 30 min */
     app->settings.leak_min_index = 0; /* 1 litre */
     app->settings.module    = WmbusModuleAuto;
@@ -208,6 +254,8 @@ WmbusApp* wmbus_app_alloc(void) {
     app->storage = furi_record_open(RECORD_STORAGE);
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
     wmbus_settings_load(app);
+    wmbus_watched_load(app);
+    app->auto_watch_pending = app->watched_count > 0;
     if(app->settings.gps_enabled) app->gps = wmbus_gps_start();
 
     app->key_store = key_store_alloc(app->storage);
@@ -576,6 +624,13 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
      * must not enter the leak detector. IZAR may advertise SAP Oil. */
     bool leak_triggered = false;
     bool alarm_requested = false;
+    bool watch_this = wmbus_is_watched(app, link.M, link.id);
+    bool launch_big = app->auto_watch_pending && app->on_meters_view && watch_this;
+    if(launch_big) {
+        app->auto_watch_pending = false;
+        app->auto_watch_queued = true;
+        app->selected = (int)(mt - app->meters);
+    }
     uint32_t litres;
     bool water_medium = mt->is_izar || link.medium == 0x62 || link.medium == 0x72 ||
                         link.medium == 0x07 || link.medium == 0x06 ||
@@ -593,7 +648,7 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
             &mt->water, litres, furi_get_tick(),
             k_windows[wi], k_min_litres[mi]);
         alarm_requested = leak_triggered && app->settings.leak_enabled &&
-                          app->settings.leak_alarm_enabled;
+                          (app->settings.leak_scope == 0 || watch_this);
     }
 
     if(log_request) {
@@ -605,6 +660,8 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
     }
 
     furi_mutex_release(app->lock);
+
+    if(launch_big) view_dispatcher_send_custom_event(app->view_dispatcher, WMBUS_EVENT_WATCH_BIG);
 
     if(log_request && log_len) {
         WmbusGpsFix fix;
@@ -669,6 +726,10 @@ int32_t wmbus_app(void* p) {
     (void)p;
     WmbusApp* app = wmbus_app_alloc();
     scene_manager_next_scene(app->scene_manager, WmbusSceneStart);
+    /* With saved watched meters, start receiving immediately on launch.
+     * The first watched telegram opens BIG once in this session. */
+    if(app->auto_watch_pending)
+        scene_manager_next_scene(app->scene_manager, WmbusSceneMeters);
     view_dispatcher_run(app->view_dispatcher);
     wmbus_app_free(app);
     return 0;
