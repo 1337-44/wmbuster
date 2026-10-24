@@ -169,7 +169,12 @@ static void format_band(WmbusApp* app, char* out, size_t cap) {
         case WmbusModeS1:  mn = "S1";  break;
         default: break;
     }
-    const char* radio = wmbus_worker_is_external(app->worker) ? "EXT" : "INT";
+    WmbusRadioState state = wmbus_worker_radio_state(app->worker);
+    const char* radio = state == WmbusRadioExternal ? "EXT" :
+                        state == WmbusRadioInternal ? "INT" :
+                        state == WmbusRadioUnavailable ? "EXT ERR" :
+                        app->settings.module == WmbusModuleExternal ? "EXT..." :
+                        app->settings.module == WmbusModuleInternal ? "INT..." : "AUTO";
     unsigned f = (unsigned)(app->settings.freq_hz / 1000);
     snprintf(out, cap, "%u.%02u %s %s", f / 1000, (f / 10) % 100, mn, radio);
 }
@@ -257,7 +262,7 @@ static void rebuild(WmbusApp* app) {
     }
     scan_canvas_set_rows(app->scan_canvas, rows, n);
 
-    char band[16];
+    char band[24];
     format_band(app, band, sizeof(band));
     char gps_status[24] = "";
     if(app->settings.gps_enabled) {
