@@ -53,12 +53,8 @@ void wmbus_settings_load(WmbusApp* app) {
             while(p < end && *p) {
                 char* start = p;
                 while(p < end && *p && *p != '\r' && *p != '\n') ++p;
-                char sep = p < end ? *p : '\0';
                 if(p < end) *p++ = '\0';
-                if(start != p - (sep != '\0' ? 1 : 0)) {
-                    parse_setting(&app->settings, start);
-                }
-                (void)sep;
+                if(*start) parse_setting(&app->settings, start);
                 while(p < end && (*p == '\r' || *p == '\n')) ++p;
             }
             /* Old experimental builds used 15 min / 1 L as a very
