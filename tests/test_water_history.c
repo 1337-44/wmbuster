@@ -17,27 +17,86 @@ static void test_parser(void) {
     assert(!wmbus_water_parse("Now 9999999999999 m3\n", &litres));
 }
 
+/* Conservative leak detector verification using real 8-second telegram
+ * cadence and 1 L cumulative-counter quantisation (as in IZAR). */
 static void test_leak(void) {
     WmbusWaterHistory h = {0};
     uint32_t start = 10000;
-    /* One jump/isolated draw must not alert. */
-    assert(!wmbus_water_update(&h, 1000, start, 30, 1));
-    assert(!wmbus_water_update(&h, 1001, start + 60000, 30, 1));
-    assert(!wmbus_water_update(&h, 1001, start + 200000, 30, 1));
-    /* 20-minute pause breaks continuous-flow detection. */
-    assert(!wmbus_water_update(&h, 1002, start + 1260000, 30, 1));
-    assert(h.chain_events == 1);
-    /* Continuous flow in 10-min steps over 30 minutes. */
-    assert(!wmbus_water_update(&h, 1003, start + 1860000, 30, 1));
-    assert(!wmbus_water_update(&h, 1004, start + 2460000, 30, 1));
-    assert(wmbus_water_update(&h, 1005, start + 3060000, 30, 1));
-    assert(h.leak_active);
-    assert(!wmbus_water_update(&h, 1005, start + 3068000, 30, 1));
-    /* Meter reset must clear the alarm and the trend. */
-    assert(!wmbus_water_update(&h, 10, start + 3076000, 30, 1));
+    assert(!wmbus_water_update(&h, 1000, start, 120, 5));
+    /* A tap drawing several litres in a few minutes is NOT a leak. */
+    for(uint32_t i = 1; i <= 60; i++) {
+        uint32_t lit = 1000 + (i * 8 * 130) / 3600; /* 130 L/h normal use */
+        assert(!wmbus_water_update(&h, lit, start + i * 8000, 120, 5));
+    }
+    assert(!h.leak_active);
+    /* Meter reset clears the alarm/plot without manufacturing a delta. */
+    assert(!wmbus_water_update(&h, 10, start + 61 * 8000, 120, 5));
     assert(!h.leak_active);
     assert(h.count == 1);
 }
+
+static void test_normal_household_use(void) {
+    WmbusWaterHistory h = {0};
+    const uint32_t start = 10000;
+    uint32_t litres = 1000;
+    /* Two and a half hours of occasional 5 L draws, every 20 min:
+     * not continuous low flow, regardless of total consumption. */
+    for(uint32_t i = 0; i < 1200; i++) {
+        if(i && i % 150 == 0) litres += 5;
+        assert(!wmbus_water_update(&h, litres, start + i * 8000, 120, 5));
+    }
+    assert(!h.leak_active);
+}
+
+static void test_sustained_small_leak(void) {
+    WmbusWaterHistory h = {0};
+    uint32_t start = 10000;
+    unsigned alerts = 0;
+    /* 3 L/h: 1 L roughly every 20 minutes, for 3.5 hours. */
+    for(uint32_t i = 0; i < 1575; i++) {
+        uint32_t litres = 1000 + (i * 8 * 3) / 3600;
+        if(wmbus_water_update(&h, litres, start + i * 8000, 120, 5)) alerts++;
+    }
+    assert(alerts == 1);
+    assert(h.leak_active);
+}
+
+static void test_fast_constant_consumption(void) {
+    WmbusWaterHistory h = {0};
+    uint32_t start = 10000;
+    /* Ordinary steady flow 130 L/h over 2.5 hours should NOT alarm. */
+    for(uint32_t i = 0; i < 1125; i++) {
+        uint32_t litres = 1000 + (i * 8 * 130) / 3600;
+        assert(!wmbus_water_update(&h, litres, start + i * 8000, 120, 5));
+    }
+    assert(!h.leak_active);
+}
+
+static void test_short_old_threshold(void) {
+    WmbusWaterHistory h = {0};
+    uint32_t start = 10000;
+    /* The old 15 min/1 L configuration used to classify everyday activity
+     * as leakage. Even when explicitly retained, the new safeguards must
+     * NOT accept 24 L/h sustained consumption as a tiny leak. */
+    for(uint32_t i = 0; i < 225; i++) {
+        uint32_t litres = 1000 + (i * 8 * 24) / 3600;
+        assert(!wmbus_water_update(&h, litres, start + i * 8000, 15, 1));
+    }
+}
+
+static void test_radio_outage_breaks_sequence(void) {
+    WmbusWaterHistory h = {0};
+    uint32_t start = 10000;
+    for(uint32_t i = 0; i < 450; i++) {
+        uint32_t litres = 1000 + (i * 8 * 3) / 3600;
+        assert(!wmbus_water_update(&h, litres, start + i * 8000, 120, 5));
+    }
+    /* Reception gap >2 min breaks continuity, not counted as "no flow". */
+    assert(!wmbus_water_update(&h, 1004, start + 450 * 8000 + 300000, 120, 5));
+    assert(!h.leak_active);
+    assert(h.chain_events == 0);
+}
+
 
 static void test_short_events_and_rate(void) {
     WmbusWaterHistory h = {0};
@@ -57,6 +116,11 @@ static void test_short_events_and_rate(void) {
 int main(void) {
     test_parser();
     test_leak();
+    test_normal_household_use();
+    test_sustained_small_leak();
+    test_fast_constant_consumption();
+    test_short_old_threshold();
+    test_radio_outage_breaks_sequence();
     test_short_events_and_rate();
     puts("Water history / leak detector tests passed.");
     return 0;
