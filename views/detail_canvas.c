@@ -301,7 +301,7 @@ static void detail_view_draw(Canvas* c, void* m_) {
         canvas_set_color(c, ColorWhite);
         canvas_set_font(c, FontSecondary);
         canvas_draw_str(c, 2, 8, m->id_line);
-        canvas_draw_str(c, 112, 8, "BIG");
+        canvas_draw_str(c, 108, 8, "BIG");
         canvas_set_color(c, ColorBlack);
         draw_big(c, m);
     } else {
