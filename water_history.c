@@ -116,6 +116,7 @@ bool wmbus_water_update(
     if(restart) {
         wmbus_water_reset_leak(h);
         if(reset || increment > 10000UL) {
+            h->last_flow_tick = 0;
             h->count = h->next = 0;
             h->stable_lph = 0;
             h->rate_primed = false;
@@ -129,6 +130,7 @@ bool wmbus_water_update(
             h->burst_litres = 0;
         }
         if(increment > 0) {
+            h->last_flow_tick = now_ms;
             h->burst_litres += increment;
         }
 
@@ -181,7 +183,7 @@ bool wmbus_water_update(
                       h->leak_quarters == 0x0F &&
                       h->chain_litres >= minimum_litres &&
                       ((uint64_t)h->chain_litres * 3600000ULL) <=
-                          ((uint64_t)elapsed * 12ULL + 10800000ULL)) {
+                          ((uint64_t)elapsed * 12ULL)) {
                 h->leak_active = true;
                 h->last_litres = litres;
                 add_sample(h, litres, now_ms);
@@ -214,6 +216,6 @@ uint32_t wmbus_water_rate_lph(const WmbusWaterHistory* h) {
 }
 
 bool wmbus_water_recent_flow(const WmbusWaterHistory* h, uint32_t now_ms) {
-    return h && h->valid && h->last_increase_tick &&
-           (uint32_t)(now_ms - h->last_increase_tick) < 20000UL;
+    return h && h->valid && h->last_flow_tick &&
+           (uint32_t)(now_ms - h->last_flow_tick) < 20000UL;
 }
