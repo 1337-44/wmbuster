@@ -37,11 +37,12 @@ The implementation uses the official Flipper notification sequences
 `InputTypeLong + InputKeyOk`; repeat events do not retrigger it.
 
 Big display values update without leaving the meter details screen.
-The graph is a **step-like chart of cumulative consumption**, *not* a raw
-radio signal graph. Twenty-four samples means around **3 minutes at an
-8-second telegram interval**; actual time varies with reception. `L/h`
-is computed from the oldest/latest available samples; short intervals,
-meter quantisation and infrequent telegrams can make it jump.
+The **full-width 128-pixel bar chart** represents positive water
+consumption **increments between received telegrams** (up to 24 readings),
+not total consumption or radio strength. The main m³ value appears in
+a rounded/shadowed frame; `L/h` and `L/min` share one line, derived
+from the same smoothed rate. Quantisation and irregular reception can
+still cause fluctuations.
 After 60 s without reception the display shows `No recent RX` rather
 than a misleading live rate.
 
@@ -59,7 +60,7 @@ Settings >:
 | Leak detect | Off / On | Off |
 | Leak window | 15, **30**, 60, 120 min | 30 min |
 | Leak minimum | **1**, 5, 10, 50 L | 1 L |
-| Leak alarm | Off / On | Off |
+| Leak scope | All / Watched | All |
 
 Values persist in `/ext/apps_data/wmbuster/settings.cfg`.
 Changing leak detection/window/minimum resets the **leak detection
@@ -76,9 +77,12 @@ over the chosen duration**, rather than report any one large draw as a leak:
 - Meter rollovers/resets, implausible >10,000 L single jumps, and
   prolonged reception outages reset continuity.
 - A confirmed detection displays `!LEAK!` in Big view.
-- With **Leak alarm = On**, a short double sound/vibration alert fires
-  **once on entering** the suspected-leak state. This alert is independent
-  of the general per-telegram Sound/Vibration settings.
+- With **Leak detect = On** and `Leak scope = All`, all supported
+  water meters are monitored. With `Leak scope = Watched`, only watched
+  water meters are monitored. A short double sound/vibration warning
+  fires on the initial suspected-leak transition.
+- With **Leak detect = Off**, BIG retains history but leak alarm
+  monitoring is disabled.
 
 **Limitations / caution:**
 
@@ -102,7 +106,7 @@ over the chosen duration**, rather than report any one large draw as a leak:
 
 ## Test checklist
 
-1. Build using `ufbt`; install the resulting `dist/wmbuster.fap`.
+1. Build using `ufbt`; install the resulting `dist/wmbuster_plus.fap`.
 2. Select a known water meter (IZAR / Techem) and open details.
 3. Cycle **Fields → Raw → Big → Fields** using OK.
 4. Verify the inverted hint text and `m3` reading are legible.
@@ -112,7 +116,7 @@ over the chosen duration**, rather than report any one large draw as a leak:
 7. Test the detector with **your own** controlled consumption, compare
    real meter increments across the selected window and test gaps/reset.
 8. Check that no alert occurs without at least 3 increases spanning the
-   whole window; verify that `Leak alarm Off` is silent.
+   whole window; verify that `Leak detect Off` is silent.
 
 Host unit tests: `make -C tests test_water_history && ./tests/test_water_history`
 (or `make -C tests check` for all tests). They do not replace device tests.
