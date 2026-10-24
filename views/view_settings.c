@@ -118,10 +118,14 @@ static void on_leak_enabled_change(VariableItem* it) {
     variable_item_set_current_value_text(it, k_toggle[enabled]);
     wmbus_settings_save(app);
 }
-static void on_leak_alarm_change(VariableItem* it) {
+static const char* k_leak_scopes[] = { "All", "Watched" };
+static void on_leak_scope_change(VariableItem* it) {
     WmbusApp* app = variable_item_get_context(it);
-    app->settings.leak_alarm_enabled = variable_item_get_current_value_index(it) != 0;
-    variable_item_set_current_value_text(it, k_toggle[app->settings.leak_alarm_enabled]);
+    uint8_t value = variable_item_get_current_value_index(it);
+    if(value > 1) value = 0;
+    if(value != app->settings.leak_scope) reset_leak_state(app);
+    app->settings.leak_scope = value;
+    variable_item_set_current_value_text(it, k_leak_scopes[value]);
     wmbus_settings_save(app);
 }
 static void on_leak_window_change(VariableItem* it) {
@@ -202,9 +206,9 @@ void wmbus_view_settings_enter(void* ctx) {
     variable_item_set_current_value_index(it, app->settings.leak_min_index);
     variable_item_set_current_value_text(it, k_leak_mins[app->settings.leak_min_index]);
 
-    it = variable_item_list_add(app->var_list, "Leak alarm", 2, on_leak_alarm_change, app);
-    variable_item_set_current_value_index(it, app->settings.leak_alarm_enabled ? 1 : 0);
-    variable_item_set_current_value_text(it, k_toggle[app->settings.leak_alarm_enabled]);
+    it = variable_item_list_add(app->var_list, "Leak scope", 2, on_leak_scope_change, app);
+    variable_item_set_current_value_index(it, app->settings.leak_scope);
+    variable_item_set_current_value_text(it, k_leak_scopes[app->settings.leak_scope]);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, WmbusViewSettings);
 }
