@@ -647,8 +647,18 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
         leak_triggered = wmbus_water_update(
             &mt->water, litres, furi_get_tick(),
             k_windows[wi], k_min_litres[mi]);
-        alarm_requested = leak_triggered && app->settings.leak_enabled &&
-                          (app->settings.leak_scope == 0 || watch_this);
+        bool monitor_here = app->settings.leak_enabled &&
+                            (app->settings.leak_scope == 0 || watch_this);
+        /* Keep the bar-chart history for every meter, but do not retain
+         * leak continuity/alarm state for meters outside selected scope. */
+        if(!monitor_here) {
+            mt->water.leak_active = false;
+            mt->water.chain_events = 0;
+            mt->water.chain_litres = 0;
+            mt->water.chain_start_tick = 0;
+            mt->water.last_increase_tick = 0;
+        }
+        alarm_requested = monitor_here && leak_triggered;
     }
 
     if(log_request) {
