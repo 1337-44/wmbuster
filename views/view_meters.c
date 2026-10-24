@@ -204,13 +204,15 @@ static void rebuild(WmbusApp* app);
 static void on_watch(void* ctx, uint16_t meter_idx) {
     WmbusApp* app = ctx;
     uint16_t m = 0; uint32_t id = 0;
+    bool found = false;
     if(furi_mutex_acquire(app->lock, 60) != FuriStatusOk) return;
     if(meter_idx < app->meter_count) {
         m = app->meters[meter_idx].manuf;
         id = app->meters[meter_idx].id;
+        found = true;
     }
     furi_mutex_release(app->lock);
-    if(meter_idx >= WMBUS_MAX_METERS || !id) return;
+    if(!found) return;
     bool enabled = false;
     if(wmbus_watched_toggle(app, m, id, &enabled)) {
         rebuild(app);
