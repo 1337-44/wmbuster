@@ -25,7 +25,7 @@ manufacturer/ID pair per line, max 32 entries.
 | Meter list / Scan | **Hold Right (>)** | Add/remove highlighted meter to/from Watched; popup **Watching / Unwatched** (or Watch failed if the SD write fails) |
 | Meter list / Scan | Short OK | Open selected meter details |
 | Meter list / Scan | Short Up/Down | Select another meter |
-| Meter details | Short OK | Cycle **Fields → Raw → Big → Fields** |
+| Meter details | Short OK | Cycle **Fields → Raw → Big → Fields**; long OK only toggles backlight (no page change). |
 | Meter details | Short Up/Down | Scroll Fields or Raw |
 | Screens | Back | Return to preceding scene |
 
@@ -59,7 +59,7 @@ shows `No m3 reading` — never fabricated consumption.
 
 Existing settings **Leak detect** Off/On, **Leak window** and
 **Leak minimum** remain. The old setting `Leak alarm: Off/On` is replaced
-with **Leak scope: All / Watched** (default All).
+with **Leak scope: All / Watched** (default Watched).
 
 - **Leak detect = Off**: no leak alert monitoring; short-term water
   history for BIG is still recorded.
@@ -69,9 +69,11 @@ with **Leak scope: All / Watched** (default All).
   non-watched meters retain chart history but are not evaluated for
   a leak alert. Switching scope resets leak-continuity state.
 - After the existing heuristic signals a suspected leak, the visual
-  alert `!LEAK!` and short double sound/vibration alert occur.
+  alert `LEAK !!!` and short double sound/vibration alert occur.
 
-This is a heuristic; it is not a certified leak detector or flood alarm.
+The detector now requires 6+ changes spread over 120 minutes (recommended),
+rejects activity bursts and rates above 12 L/h, and uses a recommended
+5 L minimum. This is a heuristic, not a certified flood alarm.
 
 ## BIG layout
 
@@ -85,7 +87,7 @@ This is a heuristic; it is not a certified leak detector or flood alarm.
   readings, up to the latest 24 telegrams. Height is scaled to the
   largest positive increment in the displayed history; a zero increment
   has no bar.
-- A blink near the rate indicates very recent measured flow; `!LEAK!`
+- A blink near the rate indicates very recent measured flow; `LEAK !!!`
   may overlay bars if the leak heuristic activates.
 - Rates remain *estimates from quantised radio readings*; small
   fluctuations may remain and do not imply actual reversed flow.
