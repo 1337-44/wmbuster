@@ -8,6 +8,8 @@ typedef struct {
     bool fix;
     bool utc_valid;
     bool gga_valid;
+    bool uart_data_seen; /* recent raw bytes from GPS UART */
+    bool nmea_seen;      /* recent successfully parsed RMC or GGA */
     bool speed_valid;
     bool course_valid;
     bool altitude_valid;
@@ -33,6 +35,7 @@ typedef struct WmbusGpsReceiver WmbusGpsReceiver;
 WmbusGpsReceiver* wmbus_gps_start(void);
 void wmbus_gps_stop(WmbusGpsReceiver* gps);
 
-/* Copy coherent snapshot; returns false on unavailable receiver/lock.
- * Fix becomes false if RMC says invalid or a sentence is stale (>5 sec). */
+/* Snapshot: position valid with fresh RMC or GGA (quality >0).
+ * UTC date is separately validated; never manufacture RMC UTC from GGA.
+ * Also exposes recent UART byte and valid RMC/GGA activity. */
 bool wmbus_gps_snapshot(WmbusGpsReceiver* gps, WmbusGpsFix* out);
