@@ -211,6 +211,18 @@ static uint32_t raw_rate(const WmbusWaterHistory* h) {
     return rate > UINT32_MAX ? UINT32_MAX : (uint32_t)rate;
 }
 
+uint32_t wmbus_water_avg_interval_ms(const WmbusWaterHistory* h) {
+    if(!h || !h->valid || h->count < 2) return 0;
+    /* Arithmetic mean of adjacent inter-arrival gaps is exactly the
+     * elapsed time between oldest and newest, divided by gap count.
+     * Ring indexing works even after it wraps, with no extra storage. */
+    uint8_t oldest = h->count == WMBUS_WATER_POINTS ? h->next : 0;
+    uint8_t newest =
+        (uint8_t)((h->next + WMBUS_WATER_POINTS - 1) % WMBUS_WATER_POINTS);
+    uint32_t span_ms = (uint32_t)(h->ticks[newest] - h->ticks[oldest]);
+    return span_ms / (uint32_t)(h->count - 1);
+}
+
 uint32_t wmbus_water_rate_lph(const WmbusWaterHistory* h) {
     return h && h->rate_primed ? h->stable_lph : 0;
 }
