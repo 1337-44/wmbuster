@@ -172,7 +172,8 @@ static void format_band(WmbusApp* app, char* out, size_t cap) {
     WmbusRadioState state = wmbus_worker_radio_state(app->worker);
     const char* radio = state == WmbusRadioExternal ? "EXT" :
                         state == WmbusRadioInternal ? "INT" :
-                        state == WmbusRadioUnavailable ? "EXT ERR" :
+                        state == WmbusRadioUnavailable ?
+                            (app->settings.module == WmbusModuleExternal ? "EXT ERR" : "RADIO?") :
                         app->settings.module == WmbusModuleExternal ? "EXT..." :
                         app->settings.module == WmbusModuleInternal ? "INT..." : "AUTO";
     unsigned f = (unsigned)(app->settings.freq_hz / 1000);
