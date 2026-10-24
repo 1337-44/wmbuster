@@ -240,8 +240,8 @@ WmbusApp* wmbus_app_alloc(void) {
     app->settings.gps_enabled = false; /* no UART pin conflicts by default */
     app->settings.leak_enabled = false; /* explicitly opt in */
     app->settings.leak_scope = 0; /* All; Leak detect Off by default */
-    app->settings.leak_window_index = 1; /* 30 min */
-    app->settings.leak_min_index = 0; /* 1 litre */
+    app->settings.leak_window_index = 3; /* 120 min: low false-positive default */
+    app->settings.leak_min_index = 1; /* 5 L */
     app->settings.module    = WmbusModuleAuto;
     app->selected = -1;
 
@@ -652,11 +652,7 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
         /* Keep the bar-chart history for every meter, but do not retain
          * leak continuity/alarm state for meters outside selected scope. */
         if(!monitor_here) {
-            mt->water.leak_active = false;
-            mt->water.chain_events = 0;
-            mt->water.chain_litres = 0;
-            mt->water.chain_start_tick = 0;
-            mt->water.last_increase_tick = 0;
+            wmbus_water_reset_leak(&mt->water);
         }
         alarm_requested = monitor_here && leak_triggered;
     }
