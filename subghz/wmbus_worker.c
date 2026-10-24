@@ -75,6 +75,7 @@ struct WmbusWorker {
     volatile bool   running;
     WmbusMode       mode;
     bool            is_external;  /* set at thread start after radio probe */
+    volatile WmbusRadioState radio_state; /* GUI reads across worker threads */
 
     uint8_t         chip_buf[1024];   /* generous: max frame ~290 B + 3of6 expansion */
     uint8_t         data_buf[WMBUS_MAX_FRAME];
@@ -90,6 +91,10 @@ void wmbus_worker_get_stats(const WmbusWorker* w, WmbusWorkerStats* out) {
 
 bool wmbus_worker_is_external(const WmbusWorker* w) {
     return w ? w->is_external : false;
+}
+
+WmbusRadioState wmbus_worker_radio_state(const WmbusWorker* w) {
+    return w ? w->radio_state : WmbusRadioUnavailable;
 }
 
 static int32_t worker_thread(void* ctx);
@@ -121,6 +126,8 @@ void wmbus_worker_free(WmbusWorker* w) {
 void wmbus_worker_start(WmbusWorker* w, WmbusMode mode) {
     if(w->running) return;
     w->mode = mode;
+    w->is_external = false;
+    w->radio_state = WmbusRadioStarting;
     w->running = true;
     furi_thread_start(w->thread);
 }
@@ -129,6 +136,7 @@ void wmbus_worker_stop(WmbusWorker* w) {
     if(!w->running) return;
     w->running = false;
     furi_thread_join(w->thread);
+    w->radio_state = WmbusRadioStarting;
 }
 
 bool wmbus_worker_is_running(const WmbusWorker* w) { return w->running; }
@@ -263,15 +271,20 @@ static int32_t worker_thread(void* ctx) {
     WmbusWorker* w = (WmbusWorker*)ctx;
     Slicer s; memset(&s, 0, sizeof(s));
 
-    /* wmbus_radio_select handles Auto / Internal / External:
-     *   Auto     – probes external CC1101 via SPI, uses it when present.
-     *   Internal – always internal.
-     *   External – attempts external, falls back to internal if absent.
-     * The result tells us which radio is active for the rest of the
-     * session (RSSI reads, FIFO drains, teardown). */
+    /* Radio selection is strict when External is configured. A missing
+     * radio does NOT mean the internal CC1101 may be used instead. */
     const SubGhzDevice* dev =
         wmbus_radio_select(NULL, w->app->settings.module);
-    bool is_external = dev && wmbus_radio_is_external(dev);
+    if(!dev) {
+        w->is_external = false;
+        w->radio_state = WmbusRadioUnavailable;
+        FURI_LOG_E("WmbusWorker", "No CC1101 available; RX disabled");
+        /* Remain joinable, but NEVER enter internal HAL reception.
+         * User can go back to Settings and choose Auto/Internal. */
+        while(w->running) furi_delay_ms(100);
+        return 0;
+    }
+    bool is_external = wmbus_radio_is_external(dev);
     w->is_external = is_external;
 
     uint32_t f = w->app->settings.freq_hz;
@@ -293,6 +306,10 @@ static int32_t worker_thread(void* ctx) {
         furi_hal_subghz_flush_rx();
         furi_hal_subghz_rx();
     }
+
+    w->radio_state = is_external ? WmbusRadioExternal : WmbusRadioInternal;
+    FURI_LOG_I("WmbusWorker", "Receiving via %s CC1101",
+               is_external ? "EXTERNAL" : "INTERNAL");
 
     uint32_t idle_ticks = 0;
     while(w->running) {
