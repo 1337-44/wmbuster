@@ -320,7 +320,7 @@ static void draw_big(Canvas* c, const DetailModel* m) {
         canvas_set_color(c, ColorBlack);
         canvas_draw_frame(c, 37, 51, 54, 12);
         canvas_set_font(c, FontSecondary);
-        canvas_draw_str(c, 45, 60, "!LEAK!");
+        canvas_draw_str(c, 41, 60, "LEAK !!!");
     }
     /* A blinking pixel by the flow rates signals freshly observed flow,
      * leaving the entire 128px bottom strip for the bar chart. */
@@ -356,9 +356,17 @@ static void detail_view_draw(Canvas* c, void* m_) {
 
 static bool detail_view_input(InputEvent* ev, void* ctx) {
     DetailCanvas* dc = ctx;
-    if(ev->type != InputTypeShort && ev->type != InputTypeRepeat) return false;
-    if(ev->key != InputKeyUp && ev->key != InputKeyDown && ev->key != InputKeyOk)
+    /* InputTypeRepeat starts after a long hold. Previously repeats of
+     * OK switched Fields/Raw/Big several times while the global long-OK
+     * handler was toggling backlight. OK must react ONLY to Short; keep
+     * auto-repeat solely for Up/Down scrolling. */
+    if(ev->key == InputKeyOk) {
+        if(ev->type != InputTypeShort) return true;
+    } else if(ev->key == InputKeyUp || ev->key == InputKeyDown) {
+        if(ev->type != InputTypeShort && ev->type != InputTypeRepeat) return false;
+    } else {
         return false;
+    }
     bool need = false;
     with_view_model(dc->view, DetailModel * m,
         {
