@@ -254,12 +254,16 @@ static void draw_big(Canvas* c, const DetailModel* m) {
     canvas_draw_str(c, 110, 34, "m3");
 
     uint32_t rate = wmbus_water_rate_lph(&m->water);
+    uint32_t now = furi_get_tick();
+    uint8_t latest_idx = (uint8_t)((m->water.next + WMBUS_WATER_POINTS - 1) % WMBUS_WATER_POINTS);
+    bool stale = (uint32_t)(now - m->water.ticks[latest_idx]) > 60000UL;
     char trend[26];
-    snprintf(trend, sizeof(trend), "+%lu L/h", (unsigned long)rate);
+    if(stale) snprintf(trend, sizeof(trend), "No recent RX");
+    else snprintf(trend, sizeof(trend), "+%lu L/h", (unsigned long)rate);
     canvas_draw_str(c, 2, 45, trend);
-    if(m->leak_enabled && m->water.leak_active) {
+    if(!stale && m->leak_enabled && m->water.leak_active) {
         canvas_draw_str(c, 69, 45, "!LEAK!");
-    } else if(wmbus_water_recent_flow(&m->water, furi_get_tick())) {
+    } else if(!stale && wmbus_water_recent_flow(&m->water, now)) {
         unsigned phase = (unsigned)((furi_get_tick() / 400) % 3);
         canvas_draw_str(c, 74, 45, phase == 0 ? "FLOW." :
                                       phase == 1 ? "FLOW.." : "FLOW...");
