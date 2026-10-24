@@ -79,12 +79,21 @@ static void on_tick_event(void* ctx) {
     if(!app->on_meters_view) return;
     static uint32_t last_gps_refresh = 0;
     uint32_t now = furi_get_tick();
-    if(app->telegram_seq == app->last_shown_seq &&
+    WmbusRadioState radio = wmbus_worker_radio_state(app->worker);
+    bool radio_changed = app->last_shown_radio_state != (uint8_t)radio;
+    if(app->telegram_seq == app->last_shown_seq && !radio_changed &&
         (!app->settings.gps_enabled ||
          (uint32_t)(now - last_gps_refresh) < 1000)) return;
     app->last_shown_seq = app->telegram_seq;
+    app->last_shown_radio_state = (uint8_t)radio;
     last_gps_refresh = now;
     wmbus_view_meters_refresh(app);
+    if(radio == WmbusRadioUnavailable &&
+       app->settings.module == WmbusModuleExternal &&
+       !app->radio_error_popup_shown && !app->popup_active) {
+        app->radio_error_popup_shown = true;
+        wmbus_show_popup(app, "External radio", "Not detected\nCheck CC1101");
+    }
 }
 
 /* ------------- Start (root menu) scene ------------- */
@@ -370,6 +379,7 @@ static void led_off(WmbusApp* app) {
 
 void wmbus_scanning_start(WmbusApp* app) {
     if(app->worker && !wmbus_worker_is_running(app->worker)) {
+        app->radio_error_popup_shown = false;
         wmbus_worker_start(app->worker, app->settings.mode);
     }
     app->scan_alerts_active = true;
