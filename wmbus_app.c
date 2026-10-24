@@ -50,8 +50,14 @@ void wmbus_view_keys_exit(void*);
 /* GUI tick: refreshes the meter list when new telegrams have arrived.
  * Pull-based to avoid dispatcher-queue contention from the worker. */
 extern void wmbus_view_meters_refresh(WmbusApp* app);
+extern void wmbus_view_detail_refresh(WmbusApp* app);
 static void on_tick_event(void* ctx) {
     WmbusApp* app = ctx;
+    if(app->on_detail_view) {
+        /* Live consumption/trend display and short flow animation. */
+        wmbus_view_detail_refresh(app);
+        return;
+    }
     if(!app->on_meters_view) return;
     static uint32_t last_gps_refresh = 0;
     uint32_t now = furi_get_tick();
@@ -158,6 +164,10 @@ WmbusApp* wmbus_app_alloc(void) {
     app->settings.vibration_enabled = true;
     app->settings.led_enabled = true;
     app->settings.gps_enabled = false; /* no UART pin conflicts by default */
+    app->settings.leak_enabled = false; /* explicitly opt in */
+    app->settings.leak_alarm_enabled = false;
+    app->settings.leak_window_index = 1; /* 30 min */
+    app->settings.leak_min_index = 0; /* 1 litre */
     app->settings.module    = WmbusModuleAuto;
     app->selected = -1;
 
@@ -512,6 +522,30 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
         mt->last_value[k] = 0;
     }
 
+    /* Track decoded cumulative WATER volumes only: heat/energy meters
+     * must not enter the leak detector. IZAR may advertise SAP Oil. */
+    bool leak_triggered = false;
+    bool alarm_requested = false;
+    uint32_t litres;
+    bool water_medium = mt->is_izar || link.medium == 0x62 || link.medium == 0x72 ||
+                        link.medium == 0x07 || link.medium == 0x06 ||
+                        link.medium == 0x15 || link.medium == 0x16 ||
+                        link.medium == 0x17;
+    if(water_medium && (!mt->encrypted || mt->decrypted_ok) &&
+       wmbus_water_parse(app->last_text, &litres)) {
+        static const uint16_t k_windows[] = {15, 30, 60, 120};
+        static const uint16_t k_min_litres[] = {1, 5, 10, 50};
+        uint8_t wi = app->settings.leak_window_index;
+        uint8_t mi = app->settings.leak_min_index;
+        if(wi > 3) wi = 1;
+        if(mi > 3) mi = 0;
+        leak_triggered = wmbus_water_update(
+            &mt->water, litres, furi_get_tick(),
+            k_windows[wi], k_min_litres[mi]);
+        alarm_requested = leak_triggered && app->settings.leak_enabled &&
+                          app->settings.leak_alarm_enabled;
+    }
+
     if(log_request) {
         log_len = len;
         memcpy(s_log_frame, fr, len);
@@ -536,6 +570,20 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
 
     /* Bump the GUI sequence counter so the tick handler redraws. */
     app->telegram_seq++;
+
+    /* A leak warning is explicitly opted in and independent of per-packet
+     * notification settings. Emit once when a continuous-flow sequence
+     * crosses the configured window, never for an isolated spike. */
+    if(alarm_requested && app->notifications) {
+        static const NotificationSequence k_leak_alarm = {
+            &message_vibro_on, &message_note_c5, &message_delay_50,
+            &message_sound_off, &message_vibro_off,
+            &message_delay_50,
+            &message_vibro_on, &message_note_c5, &message_delay_50,
+            &message_sound_off, &message_vibro_off, NULL,
+        };
+        notification_message(app->notifications, &k_leak_alarm);
+    }
 
     /* Sound and vibration are independent of the cyan scan LED. */
     if(app->scan_alerts_active && app->notifications &&
