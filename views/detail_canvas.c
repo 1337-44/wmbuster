@@ -48,7 +48,9 @@ typedef struct {
     /* Raw mode: cached APDU + cursor for OK-toggled hex dump. */
     uint8_t  apdu[DETAIL_RAW_MAX_BYTES];
     size_t   apdu_len;
-    bool     raw_view;
+    uint8_t  display_mode;   /* 0 fields, 1 raw, 2 big */
+    WmbusWaterHistory water;
+    bool     leak_enabled;
     size_t   raw_scroll;         /* row index into the dump grid             */
 } DetailModel;
 
@@ -218,29 +220,79 @@ static void draw_raw(Canvas* c, const DetailModel* m) {
     }
 }
 
-/* Tiny chevron + "OK" hint stamped at the bottom-right when a raw view
- * is available. Drawn over the scroll-bar gutter so we don't steal a
- * row from the actual content. The "OK" label tells the user how to
- * cycle, the arrow direction shows which mode they'd switch to. */
+/* Full 9-pixel inverse label; text baseline moved down one pixel. */
 static void draw_ok_hint(Canvas* c, const DetailModel* m) {
-    if(m->apdu_len == 0) return;
     canvas_set_font(c, FontSecondary);
-    const char* hint = m->raw_view ? "OK fields" : "OK raw";
+    const char* hint = m->display_mode == 0 ? "OK raw" :
+                       m->display_mode == 1 ? "OK big" : "OK fields";
     int w = canvas_string_width(c, hint);
-    /* Background patch so the hint stays readable above content. */
-    canvas_set_color(c, ColorWhite);
-    canvas_draw_box(c, 128 - w - 4, 64 - 9, w + 4, 9);
     canvas_set_color(c, ColorBlack);
-    canvas_draw_frame(c, 128 - w - 4, 64 - 9, w + 4, 9);
-    canvas_draw_str(c, 128 - w - 2, 64 - 2, hint);
+    canvas_draw_box(c, 128 - w - 5, 54, w + 5, 10);
+    canvas_set_color(c, ColorWhite);
+    canvas_draw_str(c, 128 - w - 3, 63, hint);
+    canvas_set_color(c, ColorBlack);
+}
+
+/* Big consumption readout. Small time-series plots total consumption;
+ * rising segments indicate actual new volume rather than RF packets. */
+static void draw_big(Canvas* c, const DetailModel* m) {
+    canvas_set_color(c, ColorBlack);
+    canvas_set_font(c, FontSecondary);
+    if(!m->water.valid) {
+        canvas_draw_str_aligned(c, 64, 28, AlignCenter, AlignCenter, "No m3 reading");
+        canvas_draw_str(c, 2, 49, "Waiting for data");
+        return;
+    }
+    char number[24];
+    uint32_t l = m->water.last_litres;
+    snprintf(number, sizeof(number), "%lu.%03lu",
+             (unsigned long)(l / 1000), (unsigned long)(l % 1000));
+    canvas_set_font(c, FontBigNumbers);
+    if(canvas_string_width(c, number) > 103) canvas_set_font(c, FontPrimary);
+    canvas_draw_str(c, 2, 35, number);
+    canvas_set_font(c, FontSecondary);
+    canvas_draw_str(c, 110, 34, "m3");
+
+    uint32_t rate = wmbus_water_rate_lph(&m->water);
+    char trend[26];
+    snprintf(trend, sizeof(trend), "+%lu L/h", (unsigned long)rate);
+    canvas_draw_str(c, 2, 45, trend);
+    if(m->leak_enabled && m->water.leak_active) {
+        canvas_draw_str(c, 69, 45, "!LEAK!");
+    } else if(wmbus_water_recent_flow(&m->water, furi_get_tick())) {
+        unsigned phase = (unsigned)((furi_get_tick() / 400) % 3);
+        canvas_draw_str(c, 74, 45, phase == 0 ? "FLOW." :
+                                      phase == 1 ? "FLOW.." : "FLOW...");
+    }
+    if(m->water.count > 1) {
+        uint32_t min = UINT32_MAX, max = 0;
+        for(size_t i = 0; i < m->water.count; i++) {
+            uint32_t v = m->water.litres[i];
+            if(v < min) min = v;
+            if(v > max) max = v;
+        }
+        uint8_t first = m->water.count == WMBUS_WATER_POINTS ?
+                        m->water.next : 0;
+        int prev_x = 2, prev_y = 53;
+        for(size_t i = 0; i < m->water.count; i++) {
+            uint8_t pos = (uint8_t)((first + i) % WMBUS_WATER_POINTS);
+            uint32_t v = m->water.litres[pos];
+            int x = 2 + (int)(i * 120 / (m->water.count - 1));
+            int y = max > min ? 53 - (int)(((uint64_t)(v - min) * 7) / (max - min)) : 53;
+            if(i) canvas_draw_line(c, prev_x, prev_y, x, y);
+            prev_x = x;
+            prev_y = y;
+        }
+    }
 }
 
 static void detail_view_draw(Canvas* c, void* m_) {
     const DetailModel* m = m_;
     canvas_clear(c);
     draw_header(c, m);
-    if(m->raw_view) draw_raw(c, m);
-    else            draw_rows(c, m);
+    if(m->display_mode == 1) draw_raw(c, m);
+    else if(m->display_mode == 2) draw_big(c, m);
+    else draw_rows(c, m);
     draw_ok_hint(c, m);
 }
 
@@ -253,13 +305,9 @@ static bool detail_view_input(InputEvent* ev, void* ctx) {
     with_view_model(dc->view, DetailModel * m,
         {
             if(ev->key == InputKeyOk) {
-                /* Toggle decoded ↔ raw. Only meaningful when we actually
-                 * have an APDU to show — otherwise stay in fields mode. */
-                if(m->apdu_len > 0) {
-                    m->raw_view = !m->raw_view;
-                    need = true;
-                }
-            } else if(m->raw_view) {
+                m->display_mode = (uint8_t)((m->display_mode + 1) % 3);
+                need = true;
+            } else if(m->display_mode == 1) {
                 size_t total = (m->apdu_len + DETAIL_RAW_BYTES_PER_ROW - 1) / DETAIL_RAW_BYTES_PER_ROW;
                 size_t max_scroll = detail_scroll_max(total);
                 if(max_scroll > 0) {
@@ -270,7 +318,7 @@ static bool detail_view_input(InputEvent* ev, void* ctx) {
                         m->raw_scroll++; need = true;
                     }
                 }
-            } else {
+            } else if(m->display_mode == 0) {
                 size_t max_scroll = detail_scroll_max(m->row_count);
                 if(max_scroll > 0) {
                     if(ev->key == InputKeyUp && m->scroll > 0) {
@@ -336,9 +384,7 @@ void detail_canvas_set_rows(DetailCanvas* dc, const DetailRow* rows, size_t n) {
             for(size_t i = 0; i < n; i++) m->rows[i] = rows[i];
             m->row_count = n;
             if(m->scroll > detail_scroll_max(n)) m->scroll = 0;
-            /* Always reset to decoded view when fields change so the user
-             * sees the new content first; OK still toggles on demand. */
-            m->raw_view = false;
+            /* Keep user's mode when fresh radio readings arrive. */
         },
         true);
 }
@@ -353,9 +399,26 @@ void detail_canvas_set_raw(DetailCanvas* dc,
             if(n) memcpy(m->apdu, apdu, n);
             m->apdu_len   = n;
             m->raw_scroll = 0;
-            /* Switching meters resets the toggle so the user lands on the
-             * decoded view first. */
-            m->raw_view = false;
+            /* Mode reset is explicit at scene entry, not on live refresh. */
         },
         true);
+}
+
+void detail_canvas_reset_mode(DetailCanvas* dc) {
+    with_view_model(dc->view, DetailModel * m,
+        {
+            m->display_mode = 0;
+            m->scroll = 0;
+            m->raw_scroll = 0;
+        }, true);
+}
+
+void detail_canvas_set_water(
+    DetailCanvas* dc, const WmbusWaterHistory* water, bool leak_enabled) {
+    with_view_model(dc->view, DetailModel * m,
+        {
+            if(water) m->water = *water;
+            else memset(&m->water, 0, sizeof(m->water));
+            m->leak_enabled = leak_enabled;
+        }, true);
 }
