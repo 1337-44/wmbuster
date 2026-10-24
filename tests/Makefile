@@ -68,15 +68,19 @@ GPS_NMEA_SRC = test_gps_nmea.c ../gps/minmea.c
 test_gps_nmea: $(GPS_NMEA_SRC)
 	$(CC) $(CFLAGS) $(GPS_NMEA_SRC) -o $@
 
-check: test_link test_izar test_apator_hca test_ports test_techem_water test_gps_nmea
+test_water_history: test_water_history.c ../water_history.c
+	$(CC) $(CFLAGS) test_water_history.c ../water_history.c -o $@
+
+check: test_link test_izar test_apator_hca test_ports test_techem_water test_gps_nmea test_water_history
 	./test_link
 	./test_izar
 	./test_apator_hca
 	./test_ports
 	./test_techem_water
 	./test_gps_nmea
+	./test_water_history
 
 clean:
-	rm -f test_link test_izar test_apator_hca test_ports test_techem_water test_gps_nmea
+	rm -f test_link test_izar test_apator_hca test_ports test_techem_water test_gps_nmea test_water_history
 
 .PHONY: check clean

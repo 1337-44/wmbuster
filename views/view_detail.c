@@ -73,6 +73,8 @@ void wmbus_view_detail_enter(void* ctx) {
     if(!valid) {
         detail_canvas_set_header(app->detail_canvas, "(no meter)", "", 0, 0, false, "");
         detail_canvas_set_rows(app->detail_canvas, NULL, 0);
+        detail_canvas_set_water(app->detail_canvas, NULL, false);
+        detail_canvas_reset_mode(app->detail_canvas);
         view_dispatcher_switch_to_view(app->view_dispatcher, WmbusViewDetailCanvas);
         return;
     }
@@ -128,12 +130,33 @@ void wmbus_view_detail_enter(void* ctx) {
     /* Pass the most recent APDU so the user can press OK to flip into
      * raw-bytes mode for forensics or RE work. */
     detail_canvas_set_raw(app->detail_canvas, mt.apdu, mt.apdu_len);
+    detail_canvas_set_water(app->detail_canvas, &mt.water, app->settings.leak_enabled);
+    detail_canvas_reset_mode(app->detail_canvas);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, WmbusViewDetailCanvas);
+    app->on_detail_view = true;
+}
+
+void wmbus_view_detail_refresh(WmbusApp* app) {
+    if(!app->on_detail_view) return;
+    WmbusWaterHistory water;
+    bool have_meter = false;
+    bool leak_enabled = app->settings.leak_enabled;
+    if(furi_mutex_acquire(app->lock, 20) == FuriStatusOk) {
+        if(app->selected >= 0 && (size_t)app->selected < app->meter_count) {
+            water = app->meters[app->selected].water;
+            have_meter = true;
+        }
+        furi_mutex_release(app->lock);
+    }
+    if(have_meter) detail_canvas_set_water(app->detail_canvas, &water, leak_enabled);
 }
 
 bool wmbus_view_detail_event(void* ctx, SceneManagerEvent ev) {
     (void)ctx; (void)ev; return false;
 }
 
-void wmbus_view_detail_exit(void* ctx) { (void)ctx; }
+void wmbus_view_detail_exit(void* ctx) {
+    WmbusApp* app = ctx;
+    app->on_detail_view = false;
+}

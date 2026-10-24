@@ -15,6 +15,7 @@
 #include <notification/notification_messages.h>
 
 #include "protocol/wmbus_link.h"
+#include "water_history.h"
 
 #define WMBUS_APP_NAME           "wM-Buster"
 #define WMBUS_APP_DATA_DIR       EXT_PATH("apps_data/wmbuster")
@@ -72,6 +73,7 @@ typedef struct {
     uint8_t  apdu_len;
     uint8_t  apdu[80];
     char     text[200];
+    WmbusWaterHistory water; /* bounded in-memory per-meter history */
 } WmbusMeter;
 
 typedef enum {
@@ -106,6 +108,10 @@ typedef struct {
     bool      vibration_enabled;
     bool      led_enabled;
     bool      gps_enabled;
+    bool      leak_enabled;
+    bool      leak_alarm_enabled;
+    uint8_t   leak_window_index;
+    uint8_t   leak_min_index;
     WmbusFilter filter;    /* RSSI-based filter for the meter list */
     WmbusSort   sort;      /* ordering of the meter list */
     WmbusModuleSetting module; /* internal vs external CC1101       */
@@ -156,6 +162,10 @@ struct WmbusApp {
     FuriString*        text_buf;
     Storage*           storage;
     NotificationApp*   notifications;
+    /* Global physical OK long-press subscription (all scenes). */
+    FuriPubSub*        input_events;
+    FuriPubSubSubscription* input_subscription;
+    bool               backlight_held; /* session-only, defaults to auto */
 
     WmbusSettings      settings;
     WmbusMeter         meters[WMBUS_MAX_METERS];
@@ -170,12 +180,14 @@ struct WmbusApp {
 
     struct WmbusGpsReceiver* gps;
     bool               gps_last_log_ok;
+    uint32_t           last_leak_alarm_tick;
     uint32_t           gps_last_log_tick;
     WmbusWorker*       worker;
     FuriMutex*         lock;
     bool               led_active;     /* set while cyan blink is running */
     bool               scan_alerts_active; /* alerts independent of LED */
     bool               on_meters_view; /* tick callback rebuilds list while true */
+    bool               on_detail_view; /* redraw live Big display every tick */
     uint32_t           telegram_seq;   /* incremented per accepted telegram */
     uint32_t           last_shown_seq; /* what UI last drew */
 

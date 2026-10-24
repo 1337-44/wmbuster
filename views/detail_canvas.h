@@ -15,6 +15,7 @@
 #include <gui/view.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "../water_history.h"
 
 typedef struct DetailCanvas DetailCanvas;
 
@@ -49,3 +50,9 @@ void detail_canvas_set_rows(DetailCanvas* dc, const DetailRow* rows, size_t n);
  * the caller may free or reuse it after the call returns. */
 void detail_canvas_set_raw(DetailCanvas* dc,
                            const uint8_t* apdu, size_t apdu_len);
+
+/* Three OK-cycled screens: fields -> raw -> big -> fields. */
+void detail_canvas_reset_mode(DetailCanvas* dc);
+void detail_canvas_set_water(
+    DetailCanvas* dc, const WmbusWaterHistory* water,
+    bool leak_enabled);

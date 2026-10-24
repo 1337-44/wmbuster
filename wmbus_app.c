@@ -31,7 +31,23 @@
 
 #include <furi.h>
 #include <gui/gui.h>
+#include <input/input.h>
 #include <string.h>
+
+#define WMBUS_EVENT_TOGGLE_BACKLIGHT 0xBACE0001UL
+
+/* Input service sends this from its own thread; post to the GUI dispatcher
+ * so the backlight state is only changed on the application GUI thread.
+ * InputTypeLong fires once per hold (Repeat events are ignored). */
+static void wmbus_input_backlight_cb(const void* message, void* context) {
+    WmbusApp* app = context;
+    const InputEvent* event = message;
+    if(event->type == InputTypeLong && event->key == InputKeyOk &&
+       event->sequence_source == INPUT_SEQUENCE_SOURCE_HARDWARE) {
+        view_dispatcher_send_custom_event(
+            app->view_dispatcher, WMBUS_EVENT_TOGGLE_BACKLIGHT);
+    }
+}
 
 /* Forward decls from views directory. */
 void wmbus_view_meters_enter(void*);
@@ -50,8 +66,14 @@ void wmbus_view_keys_exit(void*);
 /* GUI tick: refreshes the meter list when new telegrams have arrived.
  * Pull-based to avoid dispatcher-queue contention from the worker. */
 extern void wmbus_view_meters_refresh(WmbusApp* app);
+extern void wmbus_view_detail_refresh(WmbusApp* app);
 static void on_tick_event(void* ctx) {
     WmbusApp* app = ctx;
+    if(app->on_detail_view) {
+        /* Live consumption/trend display and short flow animation. */
+        wmbus_view_detail_refresh(app);
+        return;
+    }
     if(!app->on_meters_view) return;
     static uint32_t last_gps_refresh = 0;
     uint32_t now = furi_get_tick();
@@ -134,6 +156,18 @@ static const SceneManagerHandlers k_scene_handlers = {
 /* ------------- view_dispatcher event glue ------------- */
 static bool on_custom_event(void* ctx, uint32_t evt) {
     WmbusApp* app = ctx;
+    if(evt == WMBUS_EVENT_TOGGLE_BACKLIGHT) {
+        app->backlight_held = !app->backlight_held;
+        /* The backlight lock is temporary and applies to this app session.
+         * Ordinary OK Short events and navigation remain unchanged. */
+        notification_message(
+            app->notifications,
+            app->backlight_held ? &sequence_display_backlight_enforce_on :
+                                  &sequence_display_backlight_enforce_auto);
+        FURI_LOG_I("wM-Buster", "Backlight always-on: %s",
+                   app->backlight_held ? "ON" : "OFF");
+        return true;
+    }
     /* Forward to the active scene; meters scene uses this to refresh. */
     return scene_manager_handle_custom_event(app->scene_manager, evt);
 }
@@ -158,6 +192,10 @@ WmbusApp* wmbus_app_alloc(void) {
     app->settings.vibration_enabled = true;
     app->settings.led_enabled = true;
     app->settings.gps_enabled = false; /* no UART pin conflicts by default */
+    app->settings.leak_enabled = false; /* explicitly opt in */
+    app->settings.leak_alarm_enabled = false;
+    app->settings.leak_window_index = 1; /* 30 min */
+    app->settings.leak_min_index = 0; /* 1 litre */
     app->settings.module    = WmbusModuleAuto;
     app->selected = -1;
 
@@ -200,12 +238,34 @@ WmbusApp* wmbus_app_alloc(void) {
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
+    /* Record is held only while wM-Buster runs. Subscribing here covers
+     * menus, settings, scan and detail views with the same long-OK key. */
+    app->input_events = furi_record_open(RECORD_INPUT_EVENTS);
+    app->input_subscription = furi_pubsub_subscribe(
+        app->input_events, wmbus_input_backlight_cb, app);
+
     app->worker = wmbus_worker_alloc(app);
     return app;
 }
 
 void wmbus_app_free(WmbusApp* app) {
     if(!app) return;
+
+    /* Stop callbacks before GUI teardown. Never leave a forced-backlight
+     * setting behind when exiting to the Flipper main interface. */
+    if(app->input_subscription) {
+        furi_pubsub_unsubscribe(app->input_events, app->input_subscription);
+        app->input_subscription = NULL;
+    }
+    if(app->input_events) {
+        furi_record_close(RECORD_INPUT_EVENTS);
+        app->input_events = NULL;
+    }
+    if(app->backlight_held) {
+        notification_message_block(
+            app->notifications, &sequence_display_backlight_enforce_auto);
+        app->backlight_held = false;
+    }
     /* Make sure the LED is off and the radio is parked before we free
      * anything — leaving the cyan blink on after exit was a visible bug. */
     wmbus_scanning_stop(app);
@@ -512,6 +572,30 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
         mt->last_value[k] = 0;
     }
 
+    /* Track decoded cumulative WATER volumes only: heat/energy meters
+     * must not enter the leak detector. IZAR may advertise SAP Oil. */
+    bool leak_triggered = false;
+    bool alarm_requested = false;
+    uint32_t litres;
+    bool water_medium = mt->is_izar || link.medium == 0x62 || link.medium == 0x72 ||
+                        link.medium == 0x07 || link.medium == 0x06 ||
+                        link.medium == 0x15 || link.medium == 0x16 ||
+                        link.medium == 0x17;
+    if(water_medium && (!mt->encrypted || mt->decrypted_ok) &&
+       wmbus_water_parse(app->last_text, &litres)) {
+        static const uint16_t k_windows[] = {15, 30, 60, 120};
+        static const uint16_t k_min_litres[] = {1, 5, 10, 50};
+        uint8_t wi = app->settings.leak_window_index;
+        uint8_t mi = app->settings.leak_min_index;
+        if(wi > 3) wi = 1;
+        if(mi > 3) mi = 0;
+        leak_triggered = wmbus_water_update(
+            &mt->water, litres, furi_get_tick(),
+            k_windows[wi], k_min_litres[mi]);
+        alarm_requested = leak_triggered && app->settings.leak_enabled &&
+                          app->settings.leak_alarm_enabled;
+    }
+
     if(log_request) {
         log_len = len;
         memcpy(s_log_frame, fr, len);
@@ -536,6 +620,20 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
 
     /* Bump the GUI sequence counter so the tick handler redraws. */
     app->telegram_seq++;
+
+    /* A leak warning is explicitly opted in and independent of per-packet
+     * notification settings. Emit once when a continuous-flow sequence
+     * crosses the configured window, never for an isolated spike. */
+    if(alarm_requested && app->notifications) {
+        static const NotificationSequence k_leak_alarm = {
+            &message_vibro_on, &message_note_c5, &message_delay_50,
+            &message_sound_off, &message_vibro_off,
+            &message_delay_50,
+            &message_vibro_on, &message_note_c5, &message_delay_50,
+            &message_sound_off, &message_vibro_off, NULL,
+        };
+        notification_message(app->notifications, &k_leak_alarm);
+    }
 
     /* Sound and vibration are independent of the cyan scan LED. */
     if(app->scan_alerts_active && app->notifications &&

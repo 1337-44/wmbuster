@@ -24,6 +24,23 @@
 
 ---
 
+## Experimental additions in this branch
+
+This branch adds a third **OK big** detail screen with larger m³
+readings, live trend, animated FLOW status and a short micro-chart;
+the bottom-right OK label is inverted without the upper edge. **Hold OK**
+anywhere in the app to toggle display backlight always-on; auto timeout
+is the default and is restored on app exit.
+It also offers optional configurable **continuous-flow / suspected leak**
+monitoring (15/30/60/120-minute window and independent warning alarm).
+Neither detection nor alarm is enabled by default.
+
+See **[Big display and leak warnings](BIG_AND_LEAKS.md)** and
+[Pull Request #3](https://github.com/1337-44/wmbuster/pull/3).
+This feature is not merged into `main` and is not a certified water-leak sensor.
+
+---
+
 ## What's different from the original?
 
 ### Available on `main`

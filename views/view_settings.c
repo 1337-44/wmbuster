@@ -11,6 +11,22 @@ static const char* k_filter_names[] = { "All", "Top 10", "Top 5", "Top 3" };
 static const char* k_sort_names[]   = { "Signal", "Recent", "ID", "Packets" };
 static const char* k_module_names[] = { "Auto", "Internal", "External" };
 static const char* k_toggle[] = { "Off", "On" };
+static const char* k_leak_windows[] = { "15 min", "30 min", "60 min", "120 min" };
+static const char* k_leak_mins[] = { "1 L", "5 L", "10 L", "50 L" };
+
+/* Keep the sparkline/history; restart only leak continuity after a policy change. */
+static void reset_leak_state(WmbusApp* app) {
+    if(furi_mutex_acquire(app->lock, 50) != FuriStatusOk) return;
+    for(size_t i = 0; i < app->meter_count; ++i) {
+        WmbusWaterHistory* h = &app->meters[i].water;
+        h->chain_events = 0;
+        h->chain_litres = 0;
+        h->chain_start_tick = 0;
+        h->last_increase_tick = 0;
+        h->leak_active = false;
+    }
+    furi_mutex_release(app->lock);
+}
 
 static uint32_t freq_for_mode(WmbusMode m) {
     return (m == WmbusModeS1) ? 868300000 : 868950000;
@@ -94,6 +110,39 @@ static void on_gps_change(VariableItem* it) {
     wmbus_settings_save(app);
 }
 
+static void on_leak_enabled_change(VariableItem* it) {
+    WmbusApp* app = variable_item_get_context(it);
+    bool enabled = variable_item_get_current_value_index(it) != 0;
+    if(enabled != app->settings.leak_enabled) reset_leak_state(app);
+    app->settings.leak_enabled = enabled;
+    variable_item_set_current_value_text(it, k_toggle[enabled]);
+    wmbus_settings_save(app);
+}
+static void on_leak_alarm_change(VariableItem* it) {
+    WmbusApp* app = variable_item_get_context(it);
+    app->settings.leak_alarm_enabled = variable_item_get_current_value_index(it) != 0;
+    variable_item_set_current_value_text(it, k_toggle[app->settings.leak_alarm_enabled]);
+    wmbus_settings_save(app);
+}
+static void on_leak_window_change(VariableItem* it) {
+    WmbusApp* app = variable_item_get_context(it);
+    uint8_t n = variable_item_get_current_value_index(it);
+    if(n >= 4) n = 1;
+    if(n != app->settings.leak_window_index) reset_leak_state(app);
+    app->settings.leak_window_index = n;
+    variable_item_set_current_value_text(it, k_leak_windows[n]);
+    wmbus_settings_save(app);
+}
+static void on_leak_min_change(VariableItem* it) {
+    WmbusApp* app = variable_item_get_context(it);
+    uint8_t n = variable_item_get_current_value_index(it);
+    if(n >= 4) n = 0;
+    if(n != app->settings.leak_min_index) reset_leak_state(app);
+    app->settings.leak_min_index = n;
+    variable_item_set_current_value_text(it, k_leak_mins[n]);
+    wmbus_settings_save(app);
+}
+
 void wmbus_view_settings_enter(void* ctx) {
     WmbusApp* app = ctx;
     /* Stop the radio so mode changes apply on next start. */
@@ -140,6 +189,22 @@ void wmbus_view_settings_enter(void* ctx) {
     it = variable_item_list_add(app->var_list, "GPS UART", 2, on_gps_change, app);
     variable_item_set_current_value_index(it, app->settings.gps_enabled ? 1 : 0);
     variable_item_set_current_value_text(it, k_toggle[app->settings.gps_enabled]);
+
+    it = variable_item_list_add(app->var_list, "Leak detect", 2, on_leak_enabled_change, app);
+    variable_item_set_current_value_index(it, app->settings.leak_enabled ? 1 : 0);
+    variable_item_set_current_value_text(it, k_toggle[app->settings.leak_enabled]);
+
+    it = variable_item_list_add(app->var_list, "Leak window", 4, on_leak_window_change, app);
+    variable_item_set_current_value_index(it, app->settings.leak_window_index);
+    variable_item_set_current_value_text(it, k_leak_windows[app->settings.leak_window_index]);
+
+    it = variable_item_list_add(app->var_list, "Leak minimum", 4, on_leak_min_change, app);
+    variable_item_set_current_value_index(it, app->settings.leak_min_index);
+    variable_item_set_current_value_text(it, k_leak_mins[app->settings.leak_min_index]);
+
+    it = variable_item_list_add(app->var_list, "Leak alarm", 2, on_leak_alarm_change, app);
+    variable_item_set_current_value_index(it, app->settings.leak_alarm_enabled ? 1 : 0);
+    variable_item_set_current_value_text(it, k_toggle[app->settings.leak_alarm_enabled]);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, WmbusViewSettings);
 }
