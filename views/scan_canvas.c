@@ -50,6 +50,8 @@ struct ScanCanvas {
     View*           view;
     ScanCanvasTapCb cb;
     void*           cb_ctx;
+    ScanCanvasWatchCb watch_cb;
+    void* watch_ctx;
 };
 
 /* ---------- Drawing helpers ---------- */
@@ -174,7 +176,7 @@ static void draw_row(Canvas* c, int y_top, const ScanRow* r, bool selected, bool
      * raw hex dump from a proprietary frame) used to wipe the head off
      * the row entirely, leaving the user staring at nothing but hex. */
     const int kHeadMinW = 42;     /* enough for compact "MFR 1234" */
-    const int right_edge = has_scrollbar ? 122 : 126;
+    const int right_edge = r->watched ? 120 : (has_scrollbar ? 122 : 126);
     char val[24];
     val[0] = 0;
     if(r->value[0]) {
@@ -193,6 +195,9 @@ static void draw_row(Canvas* c, int y_top, const ScanRow* r, bool selected, bool
 
     canvas_draw_str(c, text_x, text_y, head);
     if(val[0]) canvas_draw_str(c, right_edge - vw, text_y, val);
+    /* One centred LCD pixel at the extreme right of each watched row.
+     * White on selected rows (inverted), black on ordinary rows. */
+    if(r->watched) canvas_draw_dot(c, 124, y_top + SCAN_ROW_HEIGHT / 2);
 
     canvas_set_color(c, ColorBlack);
 }
@@ -233,6 +238,13 @@ static void scan_view_draw(Canvas* c, void* m_) {
 
 static bool scan_view_input(InputEvent* ev, void* ctx) {
     ScanCanvas* sc = ctx;
+    if(ev->key == InputKeyRight && ev->type == InputTypeLong) {
+        uint16_t mi = 0xFFFF;
+        with_view_model(sc->view, ScanModel * m,
+            { if(m->cursor < m->row_count) mi = m->rows[m->cursor].meter_idx; }, false);
+        if(mi != 0xFFFF && sc->watch_cb) sc->watch_cb(sc->watch_ctx, mi);
+        return true;
+    }
     if(ev->type != InputTypeShort && ev->type != InputTypeRepeat) return false;
     bool handled = false;
     bool need_redraw = false;
@@ -288,6 +300,11 @@ void scan_canvas_free(ScanCanvas* sc) {
 }
 
 View* scan_canvas_get_view(ScanCanvas* sc) { return sc->view; }
+
+void scan_canvas_set_watch_callback(ScanCanvas* sc, ScanCanvasWatchCb cb, void* ctx) {
+    sc->watch_cb = cb;
+    sc->watch_ctx = ctx;
+}
 
 void scan_canvas_set_tap_callback(ScanCanvas* sc, ScanCanvasTapCb cb, void* ctx) {
     sc->cb = cb;
