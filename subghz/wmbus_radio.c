@@ -1,7 +1,7 @@
 #include "wmbus_radio.h"
-/* Selects the active CC1101 (internal/external), powers the GPIO 5 V
- * rail when the external module is in use, releases it on teardown.
- * Modeled on ProtoPirate's radio_device_loader. */
+/* Selects the active CC1101 on the Flipper or an external SPI plugin.
+ * "External" is strict: a missing/disconnected module must never silently
+ * receive with the built-in transceiver. */
 
 #include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
 #include <lib/subghz/devices/cc1101_int/cc1101_int_interconnect.h>
@@ -11,85 +11,98 @@
 
 #define TAG "WmbusRadio"
 
-/* Only release the OTG rail if we were the one who enabled it. */
+/* Share GPIO 5 V with the GPS receiver or a user-enabled power rail.
+ * Only disable it if THIS radio code turned it on. */
 static bool s_otg_owned = false;
 
-static void otg_power_on(void) {
-    uint8_t tries = 0;
-    while(!furi_hal_power_is_otg_enabled() && tries++ < 5) {
-        furi_hal_power_enable_otg();
-        furi_delay_ms(10);
+static bool otg_power_on(void) {
+    if(furi_hal_power_is_otg_enabled()) return true;
+    for(uint8_t tries = 0; tries < 5; ++tries) {
+        if(furi_hal_power_enable_otg()) {
+            s_otg_owned = true;
+            furi_delay_ms(25);
+            return true;
+        }
+        furi_delay_ms(25);
     }
-    if(furi_hal_power_is_otg_enabled()) s_otg_owned = true;
+    FURI_LOG_E(TAG, "GPIO 5V could not be enabled");
+    return false;
 }
 
 static void otg_power_off(void) {
-    if(s_otg_owned && furi_hal_power_is_otg_enabled()) {
-        furi_hal_power_disable_otg();
+    if(s_otg_owned) {
+        if(furi_hal_power_is_otg_enabled()) furi_hal_power_disable_otg();
         s_otg_owned = false;
     }
 }
 
-static bool external_is_connected(void) {
-    bool was_on = furi_hal_power_is_otg_enabled();
-    if(!was_on) otg_power_on();
-
-    bool present = false;
-    const SubGhzDevice* d =
-        subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
-    if(d) present = subghz_devices_is_connect(d);
-
-    if(!was_on) otg_power_off();
-    return present;
+static const SubGhzDevice* external_plugin(void) {
+    const SubGhzDevice* d = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
+    if(!d) {
+        FURI_LOG_E(TAG, "External CC1101 radio plugin missing");
+    }
+    return d;
 }
 
 bool wmbus_radio_detect_external(void) {
-    return external_is_connected();
+    const SubGhzDevice* d = external_plugin();
+    if(!d) return false;
+    bool was_powered = furi_hal_power_is_otg_enabled();
+    if(!otg_power_on()) return false;
+    bool connected = subghz_devices_is_connect(d);
+    if(!was_powered) otg_power_off();
+    return connected;
 }
 
 const SubGhzDevice* wmbus_radio_select(
     const SubGhzDevice* current,
     WmbusModuleSetting module) {
 
-    const SubGhzDevice* target = NULL;
-    bool want_ext = false;
+    if(module == WmbusModuleAuto || module == WmbusModuleExternal) {
+        const SubGhzDevice* ext = external_plugin();
+        if(ext && otg_power_on()) {
+            /* Keep 5 V enabled throughout the probe AND begin() call.
+             * Older code cycled power between these stages and ignored
+             * begin() returning false. */
+            if(subghz_devices_is_connect(ext)) {
+                if(current == ext) return ext;
 
-    switch(module) {
-    case WmbusModuleAuto:
-        /* Auto: probe for an external CC1101, use it when present. */
-        want_ext = external_is_connected();
-        if(want_ext) {
-            FURI_LOG_I(TAG, "Auto: external CC1101 detected");
-        } else {
-            FURI_LOG_I(TAG, "Auto: no external CC1101, using internal");
+                if(subghz_devices_begin(ext)) {
+                    if(current) wmbus_radio_release(current);
+                    FURI_LOG_I(TAG, "Using external CC1101");
+                    return ext;
+                }
+                /* cc1101_ext begin() allocates a SPI handle even if chip
+                 * initialisation fails; end() frees this partial state. */
+                subghz_devices_end(ext);
+                FURI_LOG_E(TAG, "External CC1101 init failed");
+            } else {
+                FURI_LOG_E(TAG, "External CC1101 not responding over SPI");
+            }
+            otg_power_off();
         }
-        break;
-    case WmbusModuleExternal:
-        want_ext = true;
-        break;
-    case WmbusModuleInternal:
-    default:
-        want_ext = false;
-        break;
-    }
-
-    if(want_ext && external_is_connected()) {
-        otg_power_on();
-        target = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
-        if(!target) {
-            FURI_LOG_E(TAG, "external plugin missing, fallback to internal");
+        if(module == WmbusModuleExternal) {
+            /* Crucial: never fall back to the internal CC1101. */
+            FURI_LOG_E(TAG, "External selected: radio unavailable, no fallback");
+            return NULL;
         }
-    }
-    if(!target) {
-        target = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
-        if(!target) return NULL; /* should be impossible */
+        FURI_LOG_W(TAG, "Auto: external unavailable; using internal CC1101");
     }
 
-    if(current == target) return target;
-
+    const SubGhzDevice* internal =
+        subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
+    if(!internal) {
+        FURI_LOG_E(TAG, "Internal CC1101 device not registered");
+        return NULL;
+    }
+    if(current == internal) return internal;
     if(current) wmbus_radio_release(current);
-    subghz_devices_begin(target);
-    return target;
+    if(!subghz_devices_begin(internal)) {
+        FURI_LOG_E(TAG, "Internal CC1101 init failed");
+        return NULL;
+    }
+    FURI_LOG_I(TAG, "Using internal CC1101");
+    return internal;
 }
 
 bool wmbus_radio_is_external(const SubGhzDevice* dev) {
@@ -103,8 +116,6 @@ void wmbus_radio_release(const SubGhzDevice* dev) {
     if(!dev) return;
     const SubGhzDevice* internal =
         subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
-    if(dev != internal) {
-        subghz_devices_end(dev);
-    }
+    if(dev != internal) subghz_devices_end(dev);
     otg_power_off();
 }
