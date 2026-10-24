@@ -38,8 +38,11 @@ settings and keys remain at `/ext/apps_data/wmbuster/`.
 - **BIG**: main m³ reading in a shadowed rounded frame, smoothed
   **L/h** and **L/min**, and full-width **bar chart** of water consumption
   increments (no BIG title).
-- **Leak detect** Off/On with scope **All / Watched**, plus configurable
-  threshold and time window. Default detection is Off.
+- **Leak detect** Off/On with scope **All / Watched** (Watched by default),
+  conservative anti-false-positive detection (120 minutes, 5 L, low-flow
+  filter and burst rejection). BIG now shows **LEAK !!!** on detection.
+  Short OK cycles detail pages, while long OK exclusively toggles backlight.
+  Default leak detection is Off.
 
 See [Watched meters & controls](WATCHED_AND_CONTROLS.md),
 [Big display & leak heuristics](BIG_AND_LEAKS.md), and
@@ -194,8 +197,26 @@ decoded reading appears.
 ## External CC1101
 
 If you have a GPIO-attached CC1101 module wired to the standard Flipper
-pin-out, switch **Settings → Module → External**. If no module is
-detected the app falls back to the internal radio.
+pin-out, choose **Settings → Module → External**.
+
+**Radio selection is strict:**
+- **Auto:** external CC1101 if its radio plugin, GPIO power and SPI
+  detection work; otherwise falls back to internal CC1101.
+- **Internal:** always use the Flipper's internal CC1101.
+- **External:** use **only** the external CC1101. If its plugin is
+  missing, 5 V cannot be enabled, the SPI probe fails or hardware
+  initialisation fails, **reception is disabled** instead of secretly
+  using the internal radio. Scan shows `EXT ERR` and a brief popup.
+
+The external CC1101 plugin must be available in Flipper's Sub-GHz
+radio-device plugin registry (on compatible firmware it is loaded from
+`/ext/apps_data/subghz/plugins/`). Check that the external CC1101
+module is wired correctly and powered; `External` is not a way to
+activate a module that cannot be detected. Scan's `EXT` / `INT`
+indicator reflects **the receiver actually initialised**, not the
+selected menu preference. If you also use a GPIO GPS receiver, the 5 V
+power rail is shared: wM-buster+ only disables 5 V if its radio
+selection enabled it.
 
 ## Documentation
 

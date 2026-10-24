@@ -19,11 +19,7 @@ static void reset_leak_state(WmbusApp* app) {
     if(furi_mutex_acquire(app->lock, 50) != FuriStatusOk) return;
     for(size_t i = 0; i < app->meter_count; ++i) {
         WmbusWaterHistory* h = &app->meters[i].water;
-        h->chain_events = 0;
-        h->chain_litres = 0;
-        h->chain_start_tick = 0;
-        h->last_increase_tick = 0;
-        h->leak_active = false;
+        wmbus_water_reset_leak(h);
     }
     furi_mutex_release(app->lock);
 }

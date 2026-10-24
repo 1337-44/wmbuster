@@ -79,12 +79,21 @@ static void on_tick_event(void* ctx) {
     if(!app->on_meters_view) return;
     static uint32_t last_gps_refresh = 0;
     uint32_t now = furi_get_tick();
-    if(app->telegram_seq == app->last_shown_seq &&
+    WmbusRadioState radio = wmbus_worker_radio_state(app->worker);
+    bool radio_changed = app->last_shown_radio_state != (uint8_t)radio;
+    if(app->telegram_seq == app->last_shown_seq && !radio_changed &&
         (!app->settings.gps_enabled ||
          (uint32_t)(now - last_gps_refresh) < 1000)) return;
     app->last_shown_seq = app->telegram_seq;
+    app->last_shown_radio_state = (uint8_t)radio;
     last_gps_refresh = now;
     wmbus_view_meters_refresh(app);
+    if(radio == WmbusRadioUnavailable &&
+       app->settings.module == WmbusModuleExternal &&
+       !app->radio_error_popup_shown && !app->popup_active) {
+        app->radio_error_popup_shown = true;
+        wmbus_show_popup(app, "External radio", "Not detected\nCheck CC1101");
+    }
 }
 
 /* ------------- Start (root menu) scene ------------- */
@@ -239,9 +248,9 @@ WmbusApp* wmbus_app_alloc(void) {
     app->settings.led_enabled = true;
     app->settings.gps_enabled = false; /* no UART pin conflicts by default */
     app->settings.leak_enabled = false; /* explicitly opt in */
-    app->settings.leak_scope = 0; /* All; Leak detect Off by default */
-    app->settings.leak_window_index = 1; /* 30 min */
-    app->settings.leak_min_index = 0; /* 1 litre */
+    app->settings.leak_scope = 1; /* Watched only; Leak detect Off by default */
+    app->settings.leak_window_index = 3; /* 120 min: low false-positive default */
+    app->settings.leak_min_index = 1; /* 5 L */
     app->settings.module    = WmbusModuleAuto;
     app->selected = -1;
 
@@ -370,6 +379,7 @@ static void led_off(WmbusApp* app) {
 
 void wmbus_scanning_start(WmbusApp* app) {
     if(app->worker && !wmbus_worker_is_running(app->worker)) {
+        app->radio_error_popup_shown = false;
         wmbus_worker_start(app->worker, app->settings.mode);
     }
     app->scan_alerts_active = true;
@@ -652,11 +662,7 @@ void wmbus_app_on_telegram(WmbusApp* app, const uint8_t* fr, size_t len, int8_t 
         /* Keep the bar-chart history for every meter, but do not retain
          * leak continuity/alarm state for meters outside selected scope. */
         if(!monitor_here) {
-            mt->water.leak_active = false;
-            mt->water.chain_events = 0;
-            mt->water.chain_litres = 0;
-            mt->water.chain_start_tick = 0;
-            mt->water.last_increase_tick = 0;
+            wmbus_water_reset_leak(&mt->water);
         }
         alarm_requested = monitor_here && leak_triggered;
     }

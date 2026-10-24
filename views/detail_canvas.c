@@ -223,17 +223,28 @@ static void draw_raw(Canvas* c, const DetailModel* m) {
 /* Inverse label without a horizontal top edge; one row lower for clean glyphs. */
 static void draw_ok_hint(Canvas* c, const DetailModel* m) {
     canvas_set_font(c, FontSecondary);
-    const char* hint = m->display_mode == 0 ? "OK raw" :
-                       m->display_mode == 1 ? "OK big" : "OK fields";
-    int w = canvas_string_width(c, hint);
-    canvas_set_color(c, ColorBlack);
     if(m->display_mode == 2) {
-        /* BIG uses the top-right label, preserving the full-width
-         * consumption bar chart all the way to LCD pixel x=127. */
+        /* BIG status shows mean inter-telegram reception time rather
+         * than the redundant OK fields prompt. The same value controls
+         * the zero-consumption baseline's reception timeout. */
+        char interval[16];
+        uint32_t avg_ms = wmbus_water_avg_interval_ms(&m->water);
+        if(!avg_ms) {
+            snprintf(interval, sizeof(interval), "-- s");
+        } else {
+            uint64_t sec = ((uint64_t)avg_ms + 500ULL) / 1000ULL;
+            if(sec > 999) snprintf(interval, sizeof(interval), ">999 s");
+            else snprintf(interval, sizeof(interval), "%lu s", (unsigned long)sec);
+        }
+        int w = canvas_string_width(c, interval);
+        canvas_set_color(c, ColorBlack);
         canvas_draw_box(c, 128 - w - 5, 0, w + 5, 10);
         canvas_set_color(c, ColorWhite);
-        canvas_draw_str(c, 128 - w - 3, 8, hint);
+        canvas_draw_str(c, 128 - w - 3, 8, interval);
     } else {
+        const char* hint = m->display_mode == 0 ? "OK raw" : "OK big";
+        int w = canvas_string_width(c, hint);
+        canvas_set_color(c, ColorBlack);
         canvas_draw_box(c, 128 - w - 5, 55, w + 5, 9);
         canvas_set_color(c, ColorWhite);
         canvas_draw_str(c, 128 - w - 3, 63, hint);
@@ -241,18 +252,20 @@ static void draw_ok_hint(Canvas* c, const DetailModel* m) {
     canvas_set_color(c, ColorBlack);
 }
 
-/* Big consumption readout. Small time-series plots total consumption;
- * rising segments indicate actual new volume rather than RF packets. */
+/* Big consumption readout and full-width per-telegram volume-increment bars.
+ * A 1px bottom baseline represents zero increment only with current RX. */
 static void draw_big(Canvas* c, const DetailModel* m) {
     canvas_set_color(c, ColorBlack);
-    /* Slight right/bottom offset gives the reading frame a 1px shadow. */
-    canvas_draw_line(c, 5, 39, 126, 39);
-    canvas_draw_line(c, 126, 14, 126, 39);
-    elements_slightly_rounded_frame(c, 2, 10, 123, 28);
+    /* Frame lowered by 2 px. Shadow is offset right/bottom and
+     * rounded at its bottom-right corner (126,39 -> 125,40 -> 124,41). */
+    canvas_draw_line(c, 126, 15, 126, 39);
+    canvas_draw_dot(c, 125, 40);
+    canvas_draw_line(c, 7, 41, 124, 41);
+    elements_slightly_rounded_frame(c, 2, 12, 123, 28);
     if(!m->water.valid) {
         canvas_set_font(c, FontSecondary);
-        canvas_draw_str_aligned(c, 64, 27, AlignCenter, AlignCenter, "No m3 reading");
-        canvas_draw_str(c, 2, 48, "Waiting for data");
+        canvas_draw_str_aligned(c, 64, 29, AlignCenter, AlignCenter, "No m3 reading");
+        canvas_draw_str(c, 2, 50, "Waiting for data");
         return;
     }
     char number[24];
@@ -261,13 +274,20 @@ static void draw_big(Canvas* c, const DetailModel* m) {
              (unsigned long)(litres / 1000), (unsigned long)(litres % 1000));
     canvas_set_font(c, FontBigNumbers);
     if(canvas_string_width(c, number) > 98) canvas_set_font(c, FontPrimary);
-    canvas_draw_str(c, 6, 33, number);
+    canvas_draw_str(c, 6, 35, number);
     canvas_set_font(c, FontSecondary);
-    canvas_draw_str(c, 107, 34, "m3");
+    canvas_draw_str(c, 107, 36, "m3");
 
     uint32_t now = furi_get_tick();
     uint8_t latest = (uint8_t)((m->water.next + WMBUS_WATER_POINTS - 1) % WMBUS_WATER_POINTS);
-    bool stale = (uint32_t)(now - m->water.ticks[latest]) > 60000UL;
+    uint32_t avg_ms = wmbus_water_avg_interval_ms(&m->water);
+    uint32_t silence_ms = (uint32_t)(now - m->water.ticks[latest]);
+    /* Missed expected reception window: 150% of mean observed period.
+     * 64-bit arithmetic avoids overflow for very slow meters.
+     * With no interval history, retain the old 60-second fallback. */
+    bool stale = avg_ms ?
+                 (uint64_t)silence_ms > ((uint64_t)avg_ms * 3ULL) / 2ULL :
+                 silence_ms > 60000UL;
     uint32_t rate = wmbus_water_rate_lph(&m->water);
     char lph[22], lpm[22];
     if(stale) {
@@ -282,8 +302,8 @@ static void draw_big(Canvas* c, const DetailModel* m) {
                  (unsigned long)(tenths_per_min / 10),
                  (unsigned long)(tenths_per_min % 10));
     }
-    canvas_draw_str(c, 2, 48, lph);
-    if(lpm[0]) canvas_draw_str(c, 69, 48, lpm);
+    canvas_draw_str(c, 2, 50, lph);
+    if(lpm[0]) canvas_draw_str(c, 69, 50, lpm);
 
     /* Full-width bars show each received interval's positive increment.
      * Bars reflect radio measurements, not an inferred continuous flow. */
@@ -310,8 +330,13 @@ static void draw_big(Canvas* c, const DetailModel* m) {
             int next_x = (int)((i + 1) * 128 / m->water.count);
             int width = next_x - x;
             int height = (int)(((uint64_t)diff * 11) / biggest);
-            if(height > 0 && width > 0)
+            if(height > 0 && width > 0) {
                 canvas_draw_box(c, x, 64 - height, (size_t)width, (size_t)height);
+            } else if(i > 0 && width > 0 && !stale && avg_ms > 0) {
+                /* Zero usage still leaves a 1px baseline *only while*
+                 * telegrams are arriving inside 1.5x their mean gap. */
+                canvas_draw_line(c, x, 63, x + width - 1, 63);
+            }
         }
     }
     if(!stale && m->leak_enabled && m->water.leak_active) {
@@ -320,20 +345,20 @@ static void draw_big(Canvas* c, const DetailModel* m) {
         canvas_set_color(c, ColorBlack);
         canvas_draw_frame(c, 37, 51, 54, 12);
         canvas_set_font(c, FontSecondary);
-        canvas_draw_str(c, 45, 60, "!LEAK!");
+        canvas_draw_str(c, 41, 60, "LEAK !!!");
     }
     /* A blinking pixel by the flow rates signals freshly observed flow,
      * leaving the entire 128px bottom strip for the bar chart. */
     if(!stale && wmbus_water_recent_flow(&m->water, now) &&
-       (now / 500) % 2 == 0) canvas_draw_disc(c, 121, 44, 2);
+       (now / 500) % 2 == 0) canvas_draw_disc(c, 121, 46, 2);
 }
 
 static void detail_view_draw(Canvas* c, void* m_) {
     const DetailModel* m = m_;
     canvas_clear(c);
     if(m->display_mode == 2) {
-        /* Save height for large numeric glyphs: normal 18 px header
-         * would overlap FontBigNumbers when the baseline is at y=35. */
+        /* Use a compact header to avoid overlap with the large reading
+         * (shifted down 2px with its frame). */
         canvas_set_color(c, ColorBlack);
         canvas_draw_box(c, 0, 0, 128, 10);
         canvas_set_color(c, ColorWhite);
@@ -356,9 +381,17 @@ static void detail_view_draw(Canvas* c, void* m_) {
 
 static bool detail_view_input(InputEvent* ev, void* ctx) {
     DetailCanvas* dc = ctx;
-    if(ev->type != InputTypeShort && ev->type != InputTypeRepeat) return false;
-    if(ev->key != InputKeyUp && ev->key != InputKeyDown && ev->key != InputKeyOk)
+    /* InputTypeRepeat starts after a long hold. Previously repeats of
+     * OK switched Fields/Raw/Big several times while the global long-OK
+     * handler was toggling backlight. OK must react ONLY to Short; keep
+     * auto-repeat solely for Up/Down scrolling. */
+    if(ev->key == InputKeyOk) {
+        if(ev->type != InputTypeShort) return true;
+    } else if(ev->key == InputKeyUp || ev->key == InputKeyDown) {
+        if(ev->type != InputTypeShort && ev->type != InputTypeRepeat) return false;
+    } else {
         return false;
+    }
     bool need = false;
     with_view_model(dc->view, DetailModel * m,
         {
