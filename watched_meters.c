@@ -23,7 +23,7 @@ void wmbus_watched_load(WmbusApp* app) {
                     line[n] = 0;
                     unsigned manuf = 0; unsigned long id = 0;
                     if(sscanf(line, "%x,%lx", &manuf, &id) == 2 &&
-                       manuf <= 0xFFFFu && id <= UINT32_MAX &&
+                       manuf <= 0xFFFFu &&
                        !wmbus_is_watched(app, (uint16_t)manuf, (uint32_t)id) &&
                        app->watched_count < WMBUS_MAX_WATCHED) {
                         app->watched[app->watched_count++] =
@@ -37,8 +37,7 @@ void wmbus_watched_load(WmbusApp* app) {
         if(n) {
             line[n] = 0;
             unsigned manuf = 0; unsigned long id = 0;
-            if(sscanf(line, "%x,%lx", &manuf, &id) == 2 && manuf <= 0xFFFFu &&
-               id <= UINT32_MAX && !wmbus_is_watched(app,(uint16_t)manuf,(uint32_t)id) &&
+            if(sscanf(line, "%x,%lx", &manuf, &id) == 2 && manuf <= 0xFFFFu && !wmbus_is_watched(app,(uint16_t)manuf,(uint32_t)id) &&
                app->watched_count < WMBUS_MAX_WATCHED)
                 app->watched[app->watched_count++] =
                     (WmbusWatched){(uint16_t)manuf,(uint32_t)id};
