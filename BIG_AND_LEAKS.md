@@ -17,7 +17,24 @@ Press **OK** to cycle through:
 
 The lower-right `OK raw` / `OK big` / `OK fields` button is now **inverted
 (white text on black box)**, with the label baseline shifted 1 LCD pixel
-lower to prevent the previous clipping effect.
+lower; its top horizontal border row has been removed to avoid clipping.
+
+### Backlight always-on (session toggle)
+
+**Hold OK** (until the Flipper long-press event) in any screen of
+wM-Buster to toggle the display's backlight lock:
+
+- First long hold: **Always on** (screen does not automatically dim).
+- Next long hold: **Auto** (restores system display timeout).
+- Short OK is unchanged and still cycles Fields / Raw / Big in meter details.
+- **Default is Auto** on every app start; this choice is **not persisted**.
+- On leaving wM-Buster, the app releases any backlight lock it enabled.
+- Keeping the backlight on continuously draws more battery power.
+
+The implementation uses the official Flipper notification sequences
+`sequence_display_backlight_enforce_on` /
+`sequence_display_backlight_enforce_auto` and listens for exactly
+`InputTypeLong + InputKeyOk`; repeat events do not retrigger it.
 
 Big display values update without leaving the meter details screen.
 The graph is a **step-like chart of cumulative consumption**, *not* a raw
