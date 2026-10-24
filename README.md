@@ -28,7 +28,9 @@
 
 This branch adds a third **OK big** detail screen with larger m³
 readings, live trend, animated FLOW status and a short micro-chart;
-the bottom-right OK label is now inverted with corrected vertical alignment.
+the bottom-right OK label is inverted without the upper edge. **Hold OK**
+anywhere in the app to toggle display backlight always-on; auto timeout
+is the default and is restored on app exit.
 It also offers optional configurable **continuous-flow / suspected leak**
 monitoring (15/30/60/120-minute window and independent warning alarm).
 Neither detection nor alarm is enabled by default.
