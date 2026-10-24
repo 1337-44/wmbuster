@@ -276,6 +276,10 @@ static void rebuild(WmbusApp* app) {
                     (uint32_t)(furi_get_tick() - app->gps_last_log_tick) < 5000;
                 snprintf(gps_status, sizeof(gps_status),
                          saved ? "GPS FIX+LOG" : "GPS FIX OK");
+            } else if(!position.uart_data_seen) {
+                snprintf(gps_status, sizeof(gps_status), "GPS no UART");
+            } else if(!position.nmea_seen) {
+                snprintf(gps_status, sizeof(gps_status), "GPS NMEA err");
             } else {
                 snprintf(gps_status, sizeof(gps_status), "GPS no fix");
             }
