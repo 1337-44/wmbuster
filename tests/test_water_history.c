@@ -84,6 +84,18 @@ static void test_short_old_threshold(void) {
     }
 }
 
+static void test_recent_flow_survives_leak_reset(void) {
+    WmbusWaterHistory h = {0};
+    assert(!wmbus_water_update(&h, 2000, 10000, 120, 5));
+    assert(!wmbus_water_update(&h, 2001, 18000, 120, 5));
+    assert(wmbus_water_recent_flow(&h, 19000));
+    /* With Leak detect Off, code explicitly resets the alarm candidate.
+     * That must NOT disable the blinking flow indicator in BIG. */
+    wmbus_water_reset_leak(&h);
+    assert(wmbus_water_recent_flow(&h, 19000));
+    assert(!h.leak_active);
+}
+
 static void test_radio_outage_breaks_sequence(void) {
     WmbusWaterHistory h = {0};
     uint32_t start = 10000;
@@ -120,6 +132,7 @@ int main(void) {
     test_sustained_small_leak();
     test_fast_constant_consumption();
     test_short_old_threshold();
+    test_recent_flow_survives_leak_reset();
     test_radio_outage_breaks_sequence();
     test_short_events_and_rate();
     puts("Water history / leak detector tests passed.");
