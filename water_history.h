@@ -17,6 +17,9 @@ typedef struct {
     uint32_t chain_start_tick;
     uint32_t chain_litres;
     uint8_t chain_events;
+    uint8_t leak_quarters;      /* positive increments in all four quarters */
+    uint32_t burst_start_tick; /* start of current 5-minute activity check */
+    uint32_t burst_litres;
     bool valid;
     bool leak_active;
     uint32_t stable_lph; /* smoothed recent average for BIG display */
@@ -32,6 +35,9 @@ bool wmbus_water_parse(const char* decoded_text, uint32_t* litres);
 bool wmbus_water_update(
     WmbusWaterHistory* h, uint32_t litres, uint32_t now_ms,
     uint32_t window_minutes, uint32_t minimum_litres);
+
+/* Reset suspected-leak continuity without clearing the chart or flow rate. */
+void wmbus_water_reset_leak(WmbusWaterHistory* h);
 
 uint32_t wmbus_water_rate_lph(const WmbusWaterHistory* h);
 bool wmbus_water_recent_flow(const WmbusWaterHistory* h, uint32_t now_ms);
