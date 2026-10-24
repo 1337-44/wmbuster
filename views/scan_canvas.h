@@ -17,6 +17,7 @@ typedef struct {
     uint16_t meter_idx;
     int8_t   rssi;
     bool     encrypted;
+    bool     watched;
     char     head[28];   /* friendly model / manufacturer name      */
     char     value[20];  /* short reading, e.g. "Now 3 u"           */
 } ScanRow;
@@ -27,7 +28,9 @@ View*       scan_canvas_get_view(ScanCanvas* sc);
 
 /* OK-tap callback. ctx is the user-supplied pointer set previously. */
 typedef void (*ScanCanvasTapCb)(void* ctx, uint16_t meter_idx);
+typedef void (*ScanCanvasWatchCb)(void* ctx, uint16_t meter_idx);
 void scan_canvas_set_tap_callback(ScanCanvas* sc, ScanCanvasTapCb cb, void* ctx);
+void scan_canvas_set_watch_callback(ScanCanvas* sc, ScanCanvasWatchCb cb, void* ctx);
 
 /* Replace the row set entirely. `rows` is copied. */
 void scan_canvas_set_rows(ScanCanvas* sc, const ScanRow* rows, size_t n);
