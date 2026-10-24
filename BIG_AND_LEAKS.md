@@ -40,11 +40,29 @@ Big display values update without leaving the meter details screen.
 The **full-width 128-pixel bar chart** represents positive water
 consumption **increments between received telegrams** (up to 24 readings),
 not total consumption or radio strength. The main m³ value appears in
-a rounded/shadowed frame; `L/h` and `L/min` share one line, derived
-from the same smoothed rate. Quantisation and irregular reception can
-still cause fluctuations.
-After 60 s without reception the display shows `No recent RX` rather
-than a misleading live rate.
+a rounded frame moved down by **2 LCD pixels**, with a rounded lower-right
+shadow. The L/h and L/min estimates share one line below it.
+
+At the upper right, instead of `OK fields`, BIG now displays the **mean
+time between consecutive decoded water-meter telegrams**, measured over
+up to 24 recent messages. Values look like `8 s`, `120 s`,
+`>999 s`; with fewer than two messages, `-- s` is shown.
+Rounding is to whole seconds.
+
+For intervals with **no new water use**, the bar chart displays a
+**one-pixel horizontal baseline at y=63**, so an idle but regularly
+transmitting meter is recognisable. The baseline appears only while the
+latest packet is no older than **1.5 times the observed mean interval**
+(e.g. 12 s for a typical 8-second cadence). Once reception is overdue,
+zero-value segments no longer display that line; positive historical
+bars remain visible. The same overdue state shows `No recent RX`
+instead of a misleading live rate. Without enough packets to estimate
+an interval, the baseline is withheld.
+
+Missing packets cannot distinguish RF reception problems from a stopped
+or temporarily silent transmitter; the graph is a reception indicator,
+not a radio diagnostic or a proof of zero water consumption.
+Quantisation and irregular reception can affect rate estimates.
 
 Big view is available for decoded **water** meters exposing `Now ... m3`
 or `Total ... m3`, including the IZAR and MK-Radio variants already
