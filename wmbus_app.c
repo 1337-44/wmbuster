@@ -31,7 +31,23 @@
 
 #include <furi.h>
 #include <gui/gui.h>
+#include <input/input.h>
 #include <string.h>
+
+#define WMBUS_EVENT_TOGGLE_BACKLIGHT 0xBACE0001UL
+
+/* Input service sends this from its own thread; post to the GUI dispatcher
+ * so the backlight state is only changed on the application GUI thread.
+ * InputTypeLong fires once per hold (Repeat events are ignored). */
+static void wmbus_input_backlight_cb(const void* message, void* context) {
+    WmbusApp* app = context;
+    const InputEvent* event = message;
+    if(event->type == InputTypeLong && event->key == InputKeyOk &&
+       event->sequence_source == INPUT_SEQUENCE_SOURCE_HARDWARE) {
+        view_dispatcher_send_custom_event(
+            app->view_dispatcher, WMBUS_EVENT_TOGGLE_BACKLIGHT);
+    }
+}
 
 /* Forward decls from views directory. */
 void wmbus_view_meters_enter(void*);
@@ -140,6 +156,18 @@ static const SceneManagerHandlers k_scene_handlers = {
 /* ------------- view_dispatcher event glue ------------- */
 static bool on_custom_event(void* ctx, uint32_t evt) {
     WmbusApp* app = ctx;
+    if(evt == WMBUS_EVENT_TOGGLE_BACKLIGHT) {
+        app->backlight_held = !app->backlight_held;
+        /* The backlight lock is temporary and applies to this app session.
+         * Ordinary OK Short events and navigation remain unchanged. */
+        notification_message(
+            app->notifications,
+            app->backlight_held ? &sequence_display_backlight_enforce_on :
+                                  &sequence_display_backlight_enforce_auto);
+        FURI_LOG_I("wM-Buster", "Backlight always-on: %s",
+                   app->backlight_held ? "ON" : "OFF");
+        return true;
+    }
     /* Forward to the active scene; meters scene uses this to refresh. */
     return scene_manager_handle_custom_event(app->scene_manager, evt);
 }
@@ -210,12 +238,34 @@ WmbusApp* wmbus_app_alloc(void) {
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
+    /* Record is held only while wM-Buster runs. Subscribing here covers
+     * menus, settings, scan and detail views with the same long-OK key. */
+    app->input_events = furi_record_open(RECORD_INPUT_EVENTS);
+    app->input_subscription = furi_pubsub_subscribe(
+        app->input_events, wmbus_input_backlight_cb, app);
+
     app->worker = wmbus_worker_alloc(app);
     return app;
 }
 
 void wmbus_app_free(WmbusApp* app) {
     if(!app) return;
+
+    /* Stop callbacks before GUI teardown. Never leave a forced-backlight
+     * setting behind when exiting to the Flipper main interface. */
+    if(app->input_subscription) {
+        furi_pubsub_unsubscribe(app->input_events, app->input_subscription);
+        app->input_subscription = NULL;
+    }
+    if(app->input_events) {
+        furi_record_close(RECORD_INPUT_EVENTS);
+        app->input_events = NULL;
+    }
+    if(app->backlight_held) {
+        notification_message_block(
+            app->notifications, &sequence_display_backlight_enforce_auto);
+        app->backlight_held = false;
+    }
     /* Make sure the LED is off and the radio is parked before we free
      * anything — leaving the cyan blink on after exit was a visible bug. */
     wmbus_scanning_stop(app);
