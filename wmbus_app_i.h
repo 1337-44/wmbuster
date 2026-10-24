@@ -183,6 +183,7 @@ struct WmbusApp {
     bool               led_active;     /* set while cyan blink is running */
     bool               scan_alerts_active; /* alerts independent of LED */
     bool               on_meters_view; /* tick callback rebuilds list while true */
+    bool               on_detail_view; /* redraw live Big display every tick */
     uint32_t           telegram_seq;   /* incremented per accepted telegram */
     uint32_t           last_shown_seq; /* what UI last drew */
 
