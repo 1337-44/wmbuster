@@ -270,13 +270,14 @@ static void rebuild(WmbusApp* app) {
         if(!app->gps) {
             snprintf(gps_status, sizeof(gps_status), "GPS UART busy");
         } else {
-            WmbusGpsFix position;
-            if(wmbus_gps_snapshot(app->gps, &position) && position.fix) {
+            WmbusGpsFix position = {0};
+            bool gps_ok = wmbus_gps_snapshot(app->gps, &position);
+            if(gps_ok && position.fix) {
                 bool saved = app->gps_last_log_ok &&
                     (uint32_t)(furi_get_tick() - app->gps_last_log_tick) < 5000;
                 snprintf(gps_status, sizeof(gps_status),
                          saved ? "GPS FIX+LOG" : "GPS FIX OK");
-            } else if(!position.uart_data_seen) {
+            } else if(!gps_ok || !position.uart_data_seen) {
                 snprintf(gps_status, sizeof(gps_status), "GPS no UART");
             } else if(!position.nmea_seen) {
                 snprintf(gps_status, sizeof(gps_status), "GPS NMEA err");
