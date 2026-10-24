@@ -293,10 +293,22 @@ static void draw_big(Canvas* c, const DetailModel* m) {
 static void detail_view_draw(Canvas* c, void* m_) {
     const DetailModel* m = m_;
     canvas_clear(c);
-    draw_header(c, m);
-    if(m->display_mode == 1) draw_raw(c, m);
-    else if(m->display_mode == 2) draw_big(c, m);
-    else draw_rows(c, m);
+    if(m->display_mode == 2) {
+        /* Save height for large numeric glyphs: normal 18 px header
+         * would overlap FontBigNumbers when the baseline is at y=35. */
+        canvas_set_color(c, ColorBlack);
+        canvas_draw_box(c, 0, 0, 128, 10);
+        canvas_set_color(c, ColorWhite);
+        canvas_set_font(c, FontSecondary);
+        canvas_draw_str(c, 2, 8, m->id_line);
+        canvas_draw_str(c, 112, 8, "BIG");
+        canvas_set_color(c, ColorBlack);
+        draw_big(c, m);
+    } else {
+        draw_header(c, m);
+        if(m->display_mode == 1) draw_raw(c, m);
+        else draw_rows(c, m);
+    }
     draw_ok_hint(c, m);
 }
 
