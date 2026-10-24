@@ -40,5 +40,9 @@ bool wmbus_water_update(
 /* Reset suspected-leak continuity without clearing the chart or flow rate. */
 void wmbus_water_reset_leak(WmbusWaterHistory* h);
 
+/* Mean gap between decoded water-meter telegrams in milliseconds.
+ * Based on up to 24 most recent samples. Returns 0 with fewer than 2. */
+uint32_t wmbus_water_avg_interval_ms(const WmbusWaterHistory* h);
+
 uint32_t wmbus_water_rate_lph(const WmbusWaterHistory* h);
 bool wmbus_water_recent_flow(const WmbusWaterHistory* h, uint32_t now_ms);
