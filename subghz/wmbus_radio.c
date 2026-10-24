@@ -97,10 +97,10 @@ const SubGhzDevice* wmbus_radio_select(
     }
     if(current == internal) return internal;
     if(current) wmbus_radio_release(current);
-    if(!subghz_devices_begin(internal)) {
-        FURI_LOG_E(TAG, "Internal CC1101 init failed");
-        return NULL;
-    }
+    /* Internal interconnect has .begin = NULL in official firmware.
+     * Therefore subghz_devices_begin(internal) returns false even
+     * though its HAL is perfectly usable. Do not treat that as failure. */
+    subghz_devices_begin(internal);
     FURI_LOG_I(TAG, "Using internal CC1101");
     return internal;
 }
