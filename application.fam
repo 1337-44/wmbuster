@@ -18,6 +18,7 @@ App(
         "gps/gps_receiver.c",
         "gps/minmea.c",
         "meters_db.c",
+        "water_history.c",
         "key_store.c",
         "protocol/wmbus_3of6.c",
         "protocol/wmbus_manchester.c",
