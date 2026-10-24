@@ -14,6 +14,7 @@ typedef struct {
     uint8_t next;
     uint32_t last_litres;
     uint32_t last_increase_tick;
+    uint32_t last_flow_tick; /* display animation independent from detector */
     uint32_t chain_start_tick;
     uint32_t chain_litres;
     uint8_t chain_events;
