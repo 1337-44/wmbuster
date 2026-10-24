@@ -22,6 +22,7 @@ typedef struct {
     uint8_t  version;
     uint8_t  medium;
     bool     is_izar;
+    bool     watched;
     int8_t   rssi;
     bool     encrypted;
     bool     have_key;
@@ -46,6 +47,7 @@ static bool snapshot(WmbusApp* app, MeterRow* snap, size_t* total_out,
         snap[i].version = m->version;
         snap[i].medium  = m->medium;
         snap[i].is_izar = m->is_izar;
+        snap[i].watched = wmbus_is_watched(app, m->manuf, m->id);
         snap[i].rssi    = m->rssi;
         snap[i].encrypted = m->encrypted;
         snap[i].have_key = m->have_key;
@@ -193,8 +195,30 @@ static const char* sort_label(WmbusSort s) {
 
 static void on_pick(void* ctx, uint16_t meter_idx) {
     WmbusApp* app = ctx;
+    app->auto_watch_pending = false; /* explicit manual selection wins */
     app->selected = (int)meter_idx;
     scene_manager_next_scene(app->scene_manager, WmbusSceneDetail);
+}
+
+static void rebuild(WmbusApp* app);
+static void on_watch(void* ctx, uint16_t meter_idx) {
+    WmbusApp* app = ctx;
+    uint16_t m = 0; uint32_t id = 0;
+    if(furi_mutex_acquire(app->lock, 60) != FuriStatusOk) return;
+    if(meter_idx < app->meter_count) {
+        m = app->meters[meter_idx].manuf;
+        id = app->meters[meter_idx].id;
+    }
+    furi_mutex_release(app->lock);
+    if(meter_idx >= WMBUS_MAX_METERS || !id) return;
+    bool enabled = false;
+    if(wmbus_watched_toggle(app, m, id, &enabled)) {
+        rebuild(app);
+        wmbus_show_popup(app, enabled ? "Watching" : "Unwatched",
+                         enabled ? "Meter saved to SD" : "Meter removed");
+    } else {
+        wmbus_show_popup(app, "Watch failed", "Check SD card / limit");
+    }
 }
 
 /* ---- Repopulate the canvas ---- */
@@ -215,6 +239,7 @@ static void rebuild(WmbusApp* app) {
         rows[i].meter_idx = order[i];
         rows[i].rssi = r->rssi;
         rows[i].encrypted = r->encrypted;
+        rows[i].watched = r->watched;
         format_head(r, rows[i].head, sizeof(rows[i].head));
         if(r->encrypted && !r->decrypted_ok) {
             /* Distinguish ENC (no key) vs BAD (key wrong/decrypt failed)
@@ -258,6 +283,7 @@ static void rebuild(WmbusApp* app) {
 void wmbus_view_meters_enter(void* ctx) {
     WmbusApp* app = ctx;
     scan_canvas_set_tap_callback(app->scan_canvas, on_pick, app);
+    scan_canvas_set_watch_callback(app->scan_canvas, on_watch, app);
     rebuild(app);
     view_dispatcher_switch_to_view(app->view_dispatcher, WmbusViewScan);
     wmbus_scanning_start(app);
