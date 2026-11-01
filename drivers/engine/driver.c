@@ -96,7 +96,24 @@ size_t wmbus_engine_decode(
 
 size_t wmbus_engine_decode_ctx(const WmbusDecodeCtx* ctx,
                                char* out, size_t cap) {
+    if(!ctx || !out || cap == 0) return 0;
     const WmbusDriver* d = wmbus_engine_find_ctx(ctx);
+    /* CI A0..B7 is manufacturer-specific application data, not generic
+     * OMS DIF/VIF records. Unknown payloads must not produce fake energy,
+     * volume or flow readings. Known dedicated drivers stay enabled. */
+    if(ctx->ci >= 0xA0 && ctx->ci <= 0xB7 && d == &k_unknown_driver) {
+        char code[4];
+        wmbus_manuf_decode(ctx->manuf, code);
+        int n = snprintf(out, cap,
+            "%s %s v0x%02X\n"
+            "Status: proprietary CI %02X\n"
+            "Decoder: unsupported\n"
+            "Bytes: %u\n",
+            code, wmbus_medium_str(ctx->medium), ctx->version,
+            ctx->ci, (unsigned)ctx->apdu_len);
+        if(n < 0) return 0;
+        return (size_t)n >= cap ? cap - 1 : (size_t)n;
+    }
     if(d->decode_ex) {
         return d->decode_ex(ctx, out, cap);
     }
