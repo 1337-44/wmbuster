@@ -375,3 +375,16 @@ modify, and redistribute this software, but any redistributed copy or
 derivative work must remain under GPLv3 and ship its complete
 corresponding source. The `_refs/` directory used during development is
 not shipped in the `.fap` and remains under its upstream licences.
+
+
+### Manufacturer-specific CI values (0xA0–0xB7)
+
+Frames with manufacturer-specific CI codes cannot safely be parsed by the
+standard OMS DIF/VIF walker. In particular, a received NLR frame with
+`CI=0xB6`, `medium=0x01 (Oil)` and an apparent huge energy value was
+**not a decoded heat reading**. Unless a dedicated manufacturer driver
+recognises the format, wM-buster+ now displays `proprietary CI B6` and
+`Decoder: unsupported` rather than fictional energy/volume/flow values.
+The complete raw telegram remains available in the RAW view and logs.
+A true decoder needs a device model, protocol documentation or several
+known-good frame/reading pairs; changing the medium to Heat is not enough.
