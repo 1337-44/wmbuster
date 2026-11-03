@@ -36,6 +36,11 @@ struct WmbusGpsReceiver {
     bool have_gga;
     uint32_t rmc_tick;
     uint32_t gga_tick;
+    uint32_t uart_rx_tick; /* last received byte; distinguish UART from GNSS */
+    uint32_t nmea_tick;    /* last checksum-valid RMC/GGA sentence */
+    float gga_latitude;
+    float gga_longitude;
+    bool gga_position_valid;
 };
 
 static void gps_parse_line(WmbusGpsReceiver* g, const char* line) {
@@ -45,6 +50,7 @@ static void gps_parse_line(WmbusGpsReceiver* g, const char* line) {
         struct minmea_sentence_rmc r;
         if(!minmea_parse_rmc(&r, line)) return;
         furi_mutex_acquire(g->lock, FuriWaitForever);
+        g->nmea_tick = furi_get_tick();
         g->rmc_valid = r.valid;
         g->rmc_tick = furi_get_tick();
         if(r.valid) {
@@ -88,6 +94,17 @@ static void gps_parse_line(WmbusGpsReceiver* g, const char* line) {
         struct minmea_sentence_gga a;
         if(!minmea_parse_gga(&a, line)) return;
         furi_mutex_acquire(g->lock, FuriWaitForever);
+        g->nmea_tick = furi_get_tick();
+        float glat = minmea_tocoord(&a.latitude);
+        float glon = minmea_tocoord(&a.longitude);
+        g->gga_position_valid = a.fix_quality > 0 &&
+            isfinite(glat) && isfinite(glon) &&
+            glat >= -90.0f && glat <= 90.0f &&
+            glon >= -180.0f && glon <= 180.0f;
+        if(g->gga_position_valid) {
+            g->gga_latitude = glat;
+            g->gga_longitude = glon;
+        }
         g->have_gga = a.fix_quality > 0;
         g->gga_tick = furi_get_tick();
         if(g->have_gga) {
@@ -111,6 +128,7 @@ static void gps_serial_callback(
     WmbusGpsReceiver* g = context;
     if(event != FuriHalSerialRxEventData) return;
     uint8_t data = furi_hal_serial_async_rx(handle);
+    g->uart_rx_tick = furi_get_tick();
     furi_stream_buffer_send(g->rx_stream, &data, 1, 0);
     furi_thread_flags_set(furi_thread_get_id(g->thread), GPS_EVENT_RX);
 }
@@ -231,10 +249,27 @@ bool wmbus_gps_snapshot(WmbusGpsReceiver* g, WmbusGpsFix* out) {
     *out = g->sample;
     uint32_t now = furi_get_tick();
     out->age_ms = (uint32_t)(now - g->rmc_tick);
-    out->fix = g->rmc_valid && out->utc_valid &&
+    bool fresh_rmc = g->rmc_valid &&
         out->age_ms <= GPS_FIX_MAX_AGE_MS;
     out->gga_valid = g->have_gga &&
         (uint32_t)(now - g->gga_tick) <= GPS_GGA_MAX_AGE_MS;
+    bool fresh_gga_position = out->gga_valid && g->gga_position_valid;
+    /* RMC UTC date is optional for spatial fix: GGA already provides
+     * a validated position and quality, while RMC dates can be missing
+     * or malformed after a cold start. Never synthesise missing UTC. */
+    out->fix = fresh_rmc || fresh_gga_position;
+    if(!fresh_rmc && fresh_gga_position) {
+        out->latitude = g->gga_latitude;
+        out->longitude = g->gga_longitude;
+        out->speed_valid = false;
+        out->course_valid = false;
+        out->utc_valid = false;
+        out->age_ms = (uint32_t)(now - g->gga_tick);
+    }
+    out->uart_data_seen = g->uart_rx_tick &&
+        (uint32_t)(now - g->uart_rx_tick) < 10000UL;
+    out->nmea_seen = g->nmea_tick &&
+        (uint32_t)(now - g->nmea_tick) < 10000UL;
     if(!out->fix) {
         out->latitude = 0.0f;
         out->longitude = 0.0f;

@@ -197,6 +197,8 @@ struct WmbusApp {
     bool               on_detail_view; /* redraw live Big display every tick */
     uint32_t           telegram_seq;   /* incremented per accepted telegram */
     uint32_t           last_shown_seq; /* what UI last drew */
+    uint8_t            last_shown_radio_state;
+    bool               radio_error_popup_shown;
 
     /* Cumulative count of every accepted telegram, regardless of whether
      * the meter row was retained or evicted from the bounded meters[]

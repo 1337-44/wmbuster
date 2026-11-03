@@ -100,3 +100,26 @@ Build/check on Flipper firmware with `ufbt`, test both `GPS UART Off`
 and `On`, verify checksum rejection / fresh RMC / stale fix suppression,
 validate every JSON line, confirm `GPS FIX+LOG` only after successful SD
 writes, and test GPS together with the selected internal/external CC1101.
+
+
+## Diagnosing `GPS no fix` after changing firmware
+
+If an independent NMEA application shows a satellite fix but wM-buster+
+previously displayed `GPS no fix`, check the scanner footer after
+updating this branch:
+
+- `GPS UART busy`: USART could not be acquired from the firmware.
+- `GPS no UART`: no raw UART bytes arrived in the past ten seconds;
+  check GPS power, RX/TX wiring, Expansion Modules ownership and GPS baud.
+  wM-buster+ currently uses 9600 baud on Flipper USART.
+- `GPS NMEA err`: UART bytes arrived but no checksum-valid RMC/GGA
+  sentence in the past ten seconds; compare GPS app baud and raw NMEA.
+- `GPS no fix`: checksum-valid position-related NMEA arrives but neither
+  recent valid RMC nor quality-verified GGA reports a position.
+- `GPS FIX OK`: recent valid RMC or quality-verified GGA with coordinates.
+  If only GGA is valid, positional fix is accepted without inventing a
+  complete calendar date: `utc_valid` remains false for geotagging.
+
+This eliminates the previous overstrict requirement that every GPS
+position must also have a valid full RMC UTC date. It does not remove
+NMEA checksum validation or use stale positions.

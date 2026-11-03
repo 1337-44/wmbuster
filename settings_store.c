@@ -42,11 +42,29 @@ void wmbus_settings_load(WmbusApp* app) {
         char buf[256];
         uint16_t n = storage_file_read(f, buf, sizeof(buf)-1);
         buf[n] = 0;
-        if(n >= 10 && strncmp(buf, "version=1\n", 10) == 0) {
-            char* line = strtok(buf, "\r\n");
-            while(line) {
-                parse_setting(&app->settings, line);
-                line = strtok(NULL, "\r\n");
+        bool from_v1 = n >= 10 && strncmp(buf, "version=1\n", 10) == 0;
+        bool from_v2 = n >= 10 && strncmp(buf, "version=2\n", 10) == 0;
+        if(from_v1 || from_v2) {
+            /* Firmware FAP API does not export strtok().
+             * Parse CR/LF-delimited lines in-place without libc tokenizer
+             * dependencies or shared strtok state. */
+            char* p = buf;
+            char* end = buf + n;
+            while(p < end && *p) {
+                char* start = p;
+                while(p < end && *p && *p != '\r' && *p != '\n') ++p;
+                if(p < end) *p++ = '\0';
+                if(*start) parse_setting(&app->settings, start);
+                while(p < end && (*p == '\r' || *p == '\n')) ++p;
+            }
+            /* Old experimental builds used 15 min / 1 L as a very
+             * permissive leak threshold, causing normal-use alerts.
+             * Migrate only this risky old combination once. All other
+             * user preferences remain unchanged. New saves use v2. */
+            if(from_v1 && app->settings.leak_window_index == 0 &&
+               app->settings.leak_min_index == 0) {
+                app->settings.leak_window_index = 3; /* 120 min */
+                app->settings.leak_min_index = 1; /* 5 L */
             }
         }
         storage_file_close(f);
@@ -60,7 +78,7 @@ bool wmbus_settings_save(WmbusApp* app) {
     storage_simply_mkdir(app->storage, WMBUS_APP_DATA_DIR);
     char buf[256];
     int len = snprintf(buf, sizeof(buf),
-        "version=1\nmode=%u\nfilter=%u\nsort=%u\nmodule=%u\n"
+        "version=2\nmode=%u\nfilter=%u\nsort=%u\nmodule=%u\n"
         "logging=%u\nsound=%u\nvibration=%u\nled=%u\ngps=%u\n"
         "leak=%u\nleak_scope=%u\nleak_window=%u\nleak_min=%u\n",
         (unsigned)app->settings.mode,
