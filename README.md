@@ -68,7 +68,7 @@ Not a certified leak/safety system.
 | Area | Additional work |
 | --- | --- |
 | **Meter details** | Keeps the **MK-Radio3 / MK-Radio4** model identifier in the title and shows **`Media: Hot water` / `Media: Cold water`** as the first detail row. |
-| **GPS via GPIO UART** | Optional, persisted **GPS UART** toggle for a compatible external GNSS receiver (e.g. NEO-6M), NMEA RMC/GGA decoding, valid-fix detection and compact **GPS FIX OK / GPS FIX+LOG** status. GPS is off by default. |
+| **GPS from UART / phone / Classic BT** | Persisted **GPS source** selector: Off, UART NEO-6M, Phone bridge, BT GPS bridge. Bridge modes use an external original ESP32 to forward phone Wi-Fi locations or Bluetooth Classic SPP NMEA to Flipper UART; **not** direct phone BLE/SPP pairing. Position is validated, expires when stale and is included in SD logs. See [GPS.md](GPS.md). |
 | **GPS power management** | Supports Flipper GPIO **5 V pin 1** for compatible GPS breakout boards: turns 5 V on when needed and restores the prior power state on exit. Check your board's voltage/logic levels before connecting. |
 | **Geotagged telegram logs** | Per-telegram GPS UTC time, latitude, longitude, speed, course and fix metadata (when available), while preserving raw telegrams. Missing/stale fixes produce `gps: null`. GPS coordinates describe the **Flipper's** location at reception, not the exact meter position. |
 | **Session names** | Changes opaque uptime-based `session_XXXXX.log` names to RTC-based `session_YYYY-MM-DD_HH-MM-SS.log`, with collision-safe suffixes. |
