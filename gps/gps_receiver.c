@@ -110,8 +110,10 @@ static void gps_parse_line(WmbusGpsReceiver* g, const char* line) {
         if(g->have_gga) {
             float alt = minmea_tofloat(&a.altitude);
             float hdop = minmea_tofloat(&a.hdop);
-            g->sample.altitude_valid = isfinite(alt);
-            g->sample.hdop_valid = isfinite(hdop);
+            /* Missing numeric NMEA fields are encoded by minmea with
+             * scale==0. Do not turn unknown phone altitude/HDOP into 0. */
+            g->sample.altitude_valid = a.altitude.scale != 0 && isfinite(alt);
+            g->sample.hdop_valid = a.hdop.scale != 0 && isfinite(hdop);
             g->sample.altitude_m = g->sample.altitude_valid ? alt : 0.0f;
             g->sample.hdop = g->sample.hdop_valid ? hdop : 0.0f;
             g->sample.satellites = (uint8_t)
