@@ -22,8 +22,16 @@ static void parse_setting(WmbusSettings* s, const char* line) {
         if(v < 2) s->vibration_enabled = (v != 0);
     } else if(sscanf(line, "led=%u", &v) == 1) {
         if(v < 2) s->led_enabled = (v != 0);
+    } else if(sscanf(line, "gps_source=%u", &v) == 1) {
+        if(v < WmbusGpsSourceCount) {
+            s->gps_source = (WmbusGpsSource)v;
+            s->gps_enabled = v != WmbusGpsOff;
+        }
     } else if(sscanf(line, "gps=%u", &v) == 1) {
-        if(v < 2) s->gps_enabled = (v != 0);
+        if(v < 2) {
+            s->gps_enabled = v != 0;
+            s->gps_source = v ? WmbusGpsUart : WmbusGpsOff;
+        }
     } else if(sscanf(line, "leak=%u", &v) == 1) {
         if(v < 2) s->leak_enabled = v != 0;
     } else if(sscanf(line, "leak_scope=%u", &v) == 1) {
@@ -70,6 +78,7 @@ void wmbus_settings_load(WmbusApp* app) {
         storage_file_close(f);
     }
     storage_file_free(f);
+    app->settings.gps_enabled = app->settings.gps_source != WmbusGpsOff;
     app->settings.freq_hz = app->settings.mode == WmbusModeS1 ? 868300000 : 868950000;
 }
 
@@ -80,7 +89,8 @@ bool wmbus_settings_save(WmbusApp* app) {
     int len = snprintf(buf, sizeof(buf),
         "version=2\nmode=%u\nfilter=%u\nsort=%u\nmodule=%u\n"
         "logging=%u\nsound=%u\nvibration=%u\nled=%u\ngps=%u\n"
-        "leak=%u\nleak_scope=%u\nleak_window=%u\nleak_min=%u\n",
+        "leak=%u\nleak_scope=%u\nleak_window=%u\nleak_min=%u\n"
+        "gps_source=%u\n",
         (unsigned)app->settings.mode,
         (unsigned)app->settings.filter,
         (unsigned)app->settings.sort,
@@ -93,7 +103,8 @@ bool wmbus_settings_save(WmbusApp* app) {
         (unsigned)app->settings.leak_enabled,
         (unsigned)app->settings.leak_scope,
         (unsigned)app->settings.leak_window_index,
-        (unsigned)app->settings.leak_min_index);
+        (unsigned)app->settings.leak_min_index,
+        (unsigned)app->settings.gps_source);
     if(len <= 0 || len >= (int)sizeof(buf)) return false;
     File* f = storage_file_alloc(app->storage);
     bool ok = false;
