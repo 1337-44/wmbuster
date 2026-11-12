@@ -247,6 +247,7 @@ WmbusApp* wmbus_app_alloc(void) {
     app->settings.vibration_enabled = true;
     app->settings.led_enabled = true;
     app->settings.gps_enabled = false; /* no UART pin conflicts by default */
+    app->settings.gps_source = WmbusGpsOff;
     app->settings.leak_enabled = false; /* explicitly opt in */
     app->settings.leak_scope = 1; /* Watched only; Leak detect Off by default */
     app->settings.leak_window_index = 3; /* 120 min: low false-positive default */
