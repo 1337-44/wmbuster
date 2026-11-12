@@ -100,6 +100,16 @@ typedef enum {
     WmbusModule_Count,
 } WmbusModuleSetting;
 
+/* An external ESP32 bridge maps phone position or Classic BT SPP NMEA
+ * onto the existing UART 9600-8N1 receiver. Flipper BLE cannot do SPP. */
+typedef enum {
+    WmbusGpsOff = 0,
+    WmbusGpsUart,
+    WmbusGpsPhoneBridge,
+    WmbusGpsBtBridge,
+    WmbusGpsSourceCount,
+} WmbusGpsSource;
+
 typedef struct {
     WmbusMode mode;
     uint32_t  freq_hz;     /* derived from mode; kept in sync */
@@ -108,7 +118,8 @@ typedef struct {
     bool      sound_enabled;
     bool      vibration_enabled;
     bool      led_enabled;
-    bool      gps_enabled;
+    bool      gps_enabled; /* derived: gps_source != Off; used by logger */
+    WmbusGpsSource gps_source;
     bool      leak_enabled;
     uint8_t   leak_scope; /* 0=All meters, 1=Watched only */
     uint8_t   leak_window_index;
