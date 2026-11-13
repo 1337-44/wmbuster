@@ -38,8 +38,11 @@ settings and keys remain at `/ext/apps_data/wmbuster/`.
 - **BIG**: main m³ reading in a shadowed rounded frame, smoothed
   **L/h** and **L/min**, and full-width **bar chart** of water consumption
   increments (no BIG title).
-- **Leak detect** Off/On with scope **All / Watched**, plus configurable
-  threshold and time window. Default detection is Off.
+- **Leak detect** Off/On with scope **All / Watched** (Watched by default),
+  conservative anti-false-positive detection (120 minutes, 5 L, low-flow
+  filter and burst rejection). BIG now shows **LEAK !!!** on detection.
+  Short OK cycles detail pages, while long OK exclusively toggles backlight.
+  Default leak detection is Off.
 
 See [Watched meters & controls](WATCHED_AND_CONTROLS.md),
 [Big display & leak heuristics](BIG_AND_LEAKS.md), and
@@ -65,7 +68,7 @@ Not a certified leak/safety system.
 | Area | Additional work |
 | --- | --- |
 | **Meter details** | Keeps the **MK-Radio3 / MK-Radio4** model identifier in the title and shows **`Media: Hot water` / `Media: Cold water`** as the first detail row. |
-| **GPS via GPIO UART** | Optional, persisted **GPS UART** toggle for a compatible external GNSS receiver (e.g. NEO-6M), NMEA RMC/GGA decoding, valid-fix detection and compact **GPS FIX OK / GPS FIX+LOG** status. GPS is off by default. |
+| **GPS from UART / phone / Classic BT** | Persisted **GPS source** selector: Off, UART NEO-6M, Phone bridge, BT GPS bridge. Bridge modes use an external original ESP32 to forward phone Wi-Fi locations or Bluetooth Classic SPP NMEA to Flipper UART; **not** direct phone BLE/SPP pairing. Position is validated, expires when stale and is included in SD logs. See [GPS.md](GPS.md). |
 | **GPS power management** | Supports Flipper GPIO **5 V pin 1** for compatible GPS breakout boards: turns 5 V on when needed and restores the prior power state on exit. Check your board's voltage/logic levels before connecting. |
 | **Geotagged telegram logs** | Per-telegram GPS UTC time, latitude, longitude, speed, course and fix metadata (when available), while preserving raw telegrams. Missing/stale fixes produce `gps: null`. GPS coordinates describe the **Flipper's** location at reception, not the exact meter position. |
 | **Session names** | Changes opaque uptime-based `session_XXXXX.log` names to RTC-based `session_YYYY-MM-DD_HH-MM-SS.log`, with collision-safe suffixes. |
@@ -194,8 +197,26 @@ decoded reading appears.
 ## External CC1101
 
 If you have a GPIO-attached CC1101 module wired to the standard Flipper
-pin-out, switch **Settings → Module → External**. If no module is
-detected the app falls back to the internal radio.
+pin-out, choose **Settings → Module → External**.
+
+**Radio selection is strict:**
+- **Auto:** external CC1101 if its radio plugin, GPIO power and SPI
+  detection work; otherwise falls back to internal CC1101.
+- **Internal:** always use the Flipper's internal CC1101.
+- **External:** use **only** the external CC1101. If its plugin is
+  missing, 5 V cannot be enabled, the SPI probe fails or hardware
+  initialisation fails, **reception is disabled** instead of secretly
+  using the internal radio. Scan shows `EXT ERR` and a brief popup.
+
+The external CC1101 plugin must be available in Flipper's Sub-GHz
+radio-device plugin registry (on compatible firmware it is loaded from
+`/ext/apps_data/subghz/plugins/`). Check that the external CC1101
+module is wired correctly and powered; `External` is not a way to
+activate a module that cannot be detected. Scan's `EXT` / `INT`
+indicator reflects **the receiver actually initialised**, not the
+selected menu preference. If you also use a GPIO GPS receiver, the 5 V
+power rail is shared: wM-buster+ only disables 5 V if its radio
+selection enabled it.
 
 ## Documentation
 
@@ -354,3 +375,16 @@ modify, and redistribute this software, but any redistributed copy or
 derivative work must remain under GPLv3 and ship its complete
 corresponding source. The `_refs/` directory used during development is
 not shipped in the `.fap` and remains under its upstream licences.
+
+
+### Manufacturer-specific CI values (0xA0–0xB7)
+
+Frames with manufacturer-specific CI codes cannot safely be parsed by the
+standard OMS DIF/VIF walker. In particular, a received NLR frame with
+`CI=0xB6`, `medium=0x01 (Oil)` and an apparent huge energy value was
+**not a decoded heat reading**. Unless a dedicated manufacturer driver
+recognises the format, wM-buster+ now displays `proprietary CI B6` and
+`Decoder: unsupported` rather than fictional energy/volume/flow values.
+The complete raw telegram remains available in the RAW view and logs.
+A true decoder needs a device model, protocol documentation or several
+known-good frame/reading pairs; changing the medium to Heat is not enough.

@@ -10,6 +10,9 @@ static const char* k_mode_names[]   = { "T1", "C1", "T+C", "S1" };
 static const char* k_filter_names[] = { "All", "Top 10", "Top 5", "Top 3" };
 static const char* k_sort_names[]   = { "Signal", "Recent", "ID", "Packets" };
 static const char* k_module_names[] = { "Auto", "Internal", "External" };
+static const char* k_gps_sources[] = {
+    "Off", "UART NEO-6M", "Phone bridge", "BT GPS bridge"
+};
 static const char* k_toggle[] = { "Off", "On" };
 static const char* k_leak_windows[] = { "15 min", "30 min", "60 min", "120 min" };
 static const char* k_leak_mins[] = { "1 L", "5 L", "10 L", "50 L" };
@@ -19,11 +22,7 @@ static void reset_leak_state(WmbusApp* app) {
     if(furi_mutex_acquire(app->lock, 50) != FuriStatusOk) return;
     for(size_t i = 0; i < app->meter_count; ++i) {
         WmbusWaterHistory* h = &app->meters[i].water;
-        h->chain_events = 0;
-        h->chain_litres = 0;
-        h->chain_start_tick = 0;
-        h->last_increase_tick = 0;
-        h->leak_active = false;
+        wmbus_water_reset_leak(h);
     }
     furi_mutex_release(app->lock);
 }
@@ -97,16 +96,17 @@ static void on_led_change(VariableItem* it) {
 
 static void on_gps_change(VariableItem* it) {
     WmbusApp* app = variable_item_get_context(it);
-    bool enable = variable_item_get_current_value_index(it) != 0;
-    if(enable && !app->settings.gps_enabled) {
-        app->gps = wmbus_gps_start();
-    } else if(!enable && app->settings.gps_enabled) {
-        if(app->gps) wmbus_gps_stop(app->gps);
+    uint8_t choice = variable_item_get_current_value_index(it);
+    if(choice >= WmbusGpsSourceCount) choice = WmbusGpsOff;
+    if(app->gps) {
+        wmbus_gps_stop(app->gps);
         app->gps = NULL;
     }
-    app->settings.gps_enabled = enable;
+    app->settings.gps_source = (WmbusGpsSource)choice;
+    app->settings.gps_enabled = choice != WmbusGpsOff;
+    if(app->settings.gps_enabled) app->gps = wmbus_gps_start();
     app->gps_last_log_ok = false;
-    variable_item_set_current_value_text(it, k_toggle[enable]);
+    variable_item_set_current_value_text(it, k_gps_sources[choice]);
     wmbus_settings_save(app);
 }
 
@@ -190,9 +190,9 @@ void wmbus_view_settings_enter(void* ctx) {
     variable_item_set_current_value_index(it, app->settings.led_enabled ? 1 : 0);
     variable_item_set_current_value_text(it, k_toggle[app->settings.led_enabled]);
 
-    it = variable_item_list_add(app->var_list, "GPS UART", 2, on_gps_change, app);
-    variable_item_set_current_value_index(it, app->settings.gps_enabled ? 1 : 0);
-    variable_item_set_current_value_text(it, k_toggle[app->settings.gps_enabled]);
+    it = variable_item_list_add(app->var_list, "GPS source", WmbusGpsSourceCount, on_gps_change, app);
+    variable_item_set_current_value_index(it, app->settings.gps_source);
+    variable_item_set_current_value_text(it, k_gps_sources[app->settings.gps_source]);
 
     it = variable_item_list_add(app->var_list, "Leak detect", 2, on_leak_enabled_change, app);
     variable_item_set_current_value_index(it, app->settings.leak_enabled ? 1 : 0);

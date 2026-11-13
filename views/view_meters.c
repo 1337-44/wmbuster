@@ -169,7 +169,13 @@ static void format_band(WmbusApp* app, char* out, size_t cap) {
         case WmbusModeS1:  mn = "S1";  break;
         default: break;
     }
-    const char* radio = wmbus_worker_is_external(app->worker) ? "EXT" : "INT";
+    WmbusRadioState state = wmbus_worker_radio_state(app->worker);
+    const char* radio = state == WmbusRadioExternal ? "EXT" :
+                        state == WmbusRadioInternal ? "INT" :
+                        state == WmbusRadioUnavailable ?
+                            (app->settings.module == WmbusModuleExternal ? "EXT ERR" : "RADIO?") :
+                        app->settings.module == WmbusModuleExternal ? "EXT..." :
+                        app->settings.module == WmbusModuleInternal ? "INT..." : "AUTO";
     unsigned f = (unsigned)(app->settings.freq_hz / 1000);
     snprintf(out, cap, "%u.%02u %s %s", f / 1000, (f / 10) % 100, mn, radio);
 }
@@ -257,19 +263,24 @@ static void rebuild(WmbusApp* app) {
     }
     scan_canvas_set_rows(app->scan_canvas, rows, n);
 
-    char band[16];
+    char band[24];
     format_band(app, band, sizeof(band));
     char gps_status[24] = "";
     if(app->settings.gps_enabled) {
         if(!app->gps) {
             snprintf(gps_status, sizeof(gps_status), "GPS UART busy");
         } else {
-            WmbusGpsFix position;
-            if(wmbus_gps_snapshot(app->gps, &position) && position.fix) {
+            WmbusGpsFix position = {0};
+            bool gps_ok = wmbus_gps_snapshot(app->gps, &position);
+            if(gps_ok && position.fix) {
                 bool saved = app->gps_last_log_ok &&
                     (uint32_t)(furi_get_tick() - app->gps_last_log_tick) < 5000;
                 snprintf(gps_status, sizeof(gps_status),
                          saved ? "GPS FIX+LOG" : "GPS FIX OK");
+            } else if(!gps_ok || !position.uart_data_seen) {
+                snprintf(gps_status, sizeof(gps_status), "GPS no UART");
+            } else if(!position.nmea_seen) {
+                snprintf(gps_status, sizeof(gps_status), "GPS NMEA err");
             } else {
                 snprintf(gps_status, sizeof(gps_status), "GPS no fix");
             }
