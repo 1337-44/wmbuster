@@ -173,6 +173,7 @@ static void format_band(WmbusApp* app, char* out, size_t cap) {
     const char* radio = state == WmbusRadioExternal ? "EXT" :
                         state == WmbusRadioInternal ? "INT" :
                         state == WmbusRadioNanoCul ? "CUL" :
+                        state == WmbusRadioCulNoReply ? "CUL NO ACK" :
                         state == WmbusRadioUnavailable ?
                             (app->settings.module == WmbusModuleExternal ? "EXT ERR" :
                              app->settings.module == WmbusModuleNanoCul ? "CUL ERR" : "RADIO?") :
