@@ -78,9 +78,15 @@ automatically change the system's expansion configuration.
 2. Close any computer serial terminal attached to the NanoCUL.
 3. Start wM-buster+, open **Settings > Module > NanoCUL**.
 4. Pick **Mode > T1** for a first test (or **T+C** with patched culfw).
-5. Enter **Scan**. Look for `CUL...` (waiting for mode response),
-   `CUL` (mode accepted or CRC-valid frame), or
-   `CUL ERR` (port unavailable/firmware mode not acknowledged).
+5. Enter **Scan**. Look for `CUL...` (opening/initialising),
+   `CUL` (mode accepted or CRC-valid frame), `CUL NO ACK` (LPUART
+   successfully opened but no mode response/valid telegram yet), or
+   `CUL ERR` (LPUART unavailable/failed). A silent firmware may still
+   deliver frames later; after `CUL NO ACK` the receiver keeps listening.
+   If NanoCUL works with GPS disabled but not enabled, compare these
+   statuses. Both UARTs are separate peripherals; check shared supply
+   voltage and serial service ownership rather than assuming the ports
+   are physically the same.
 6. Set **Log to SD = On** to preserve raw frames in existing session logs.
    The old internal/external CC1101 choices remain available.
 
