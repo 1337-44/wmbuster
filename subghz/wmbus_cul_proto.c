@@ -75,6 +75,9 @@ WmbusCulParseResult wmbus_cul_parse_line(
         decoded_len = expected - 2;
         if(decoded_len > capacity) return WmbusCulParseBad;
         memcpy(out, raw, decoded_len);
+        /* Format B L counts its trailing CRC. After stripping CRC the
+         * normalised link frame must have L == payload length - 1. */
+        out[0] = (uint8_t)(decoded_len - 1);
     } else {
         if(!wmbus_crc_verify_format_a(raw, expected, out, capacity, &decoded_len)) {
             return WmbusCulParseBad;
