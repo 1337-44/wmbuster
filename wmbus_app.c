@@ -88,15 +88,20 @@ static void on_tick_event(void* ctx) {
     app->last_shown_radio_state = (uint8_t)radio;
     last_gps_refresh = now;
     wmbus_view_meters_refresh(app);
-    if(radio == WmbusRadioUnavailable &&
+    if((radio == WmbusRadioUnavailable ||
+        radio == WmbusRadioCulNoReply) &&
        (app->settings.module == WmbusModuleExternal ||
         app->settings.module == WmbusModuleNanoCul) &&
        !app->radio_error_popup_shown && !app->popup_active) {
         app->radio_error_popup_shown = true;
-        if(app->settings.module == WmbusModuleNanoCul)
-            wmbus_show_popup(app, "NanoCUL UART", "Unavailable / no mode\nCheck LPUART");
-        else
+        if(app->settings.module == WmbusModuleNanoCul) {
+            if(radio == WmbusRadioCulNoReply)
+                wmbus_show_popup(app, "NanoCUL no reply", "UART open\nCheck baud / power");
+            else
+                wmbus_show_popup(app, "NanoCUL UART", "LPUART busy or failed");
+        } else {
             wmbus_show_popup(app, "External radio", "Not detected\nCheck CC1101");
+        }
     }
 }
 
