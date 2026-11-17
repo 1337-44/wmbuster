@@ -1,5 +1,6 @@
 #include "wmbus_worker.h"
 #include "wmbus_radio.h"
+#include "wmbus_cul.h"
 #include "../protocol/wmbus_3of6.h"
 #include "../protocol/wmbus_manchester.h"
 #include "../protocol/wmbus_crc.h"
@@ -267,8 +268,65 @@ static void slicer_run(WmbusWorker* w, Slicer* s) {
     }
 }
 
+/* Serial CUL path intentionally never touches internal or external CC1101.
+ * CRC, register dispatch, meter table, logging and watchlist are shared
+ * through wmbus_app_on_telegram(). GPS keeps the other (USART) port. */
+static int32_t cul_worker_thread(WmbusWorker* w) {
+    WmbusCul* cul = wmbus_cul_open(w->mode);
+    if(!cul) {
+        w->radio_state = WmbusRadioUnavailable;
+        FURI_LOG_E("WmbusWorker", "NanoCUL LPUART unavailable, no fallback");
+        while(w->running) furi_delay_ms(100);
+        return 0;
+    }
+    uint32_t start = furi_get_tick();
+    bool ready = false;
+    while(w->running) {
+        size_t len = 0;
+        int8_t rssi = -127;
+        WmbusCulEvent event = wmbus_cul_poll(
+            cul, w->payload_buf, sizeof(w->payload_buf), &len, &rssi);
+        switch(event) {
+        case WmbusCulEventModeReady:
+            ready = true;
+            w->radio_state = WmbusRadioNanoCul;
+            FURI_LOG_I("WmbusWorker", "nanoCUL firmware acknowledged receiver mode");
+            break;
+        case WmbusCulEventFrameA:
+        case WmbusCulEventFrameB:
+            ready = true;
+            w->radio_state = WmbusRadioNanoCul;
+            if(event == WmbusCulEventFrameA) w->stats.decoded_a++;
+            else w->stats.decoded_b++;
+            w->stats.sync_locks++;
+            wmbus_app_on_telegram(w->app, w->payload_buf, len, rssi);
+            break;
+        case WmbusCulEventBadFrame:
+            w->stats.crc_fails++;
+            break;
+        case WmbusCulEventModeError:
+            FURI_LOG_E("WmbusWorker", "nanoCUL rejected firmware mode command");
+            w->radio_state = WmbusRadioUnavailable;
+            break;
+        default:
+            break;
+        }
+        /* Some culfw variants do not support brc. A serial handle alone
+         * doesn't prove that the NanoCUL actually entered wM-Bus receive. */
+        if(!ready && (uint32_t)(furi_get_tick() - start) > 3000UL &&
+           w->radio_state == WmbusRadioStarting) {
+            w->radio_state = WmbusRadioUnavailable;
+            FURI_LOG_W("WmbusWorker", "nanoCUL: no mode acknowledgement");
+        }
+    }
+    wmbus_cul_close(cul);
+    return 0;
+}
+
 static int32_t worker_thread(void* ctx) {
     WmbusWorker* w = (WmbusWorker*)ctx;
+    if(w->app->settings.module == WmbusModuleNanoCul)
+        return cul_worker_thread(w);
     Slicer s; memset(&s, 0, sizeof(s));
 
     /* Radio selection is strict when External is configured. A missing
