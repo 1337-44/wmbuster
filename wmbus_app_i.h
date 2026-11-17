@@ -97,6 +97,7 @@ typedef enum {
     WmbusModuleAuto     = 0,    /* probe external first, fall back   */
     WmbusModuleInternal = 1,    /* force on-board CC1101             */
     WmbusModuleExternal = 2,    /* force GPIO-attached external      */
+    WmbusModuleNanoCul = 3,     /* culfw serial via LPUART 15/16       */
     WmbusModule_Count,
 } WmbusModuleSetting;
 
