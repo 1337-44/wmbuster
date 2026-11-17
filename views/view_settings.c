@@ -9,7 +9,7 @@
 static const char* k_mode_names[]   = { "T1", "C1", "T+C", "S1" };
 static const char* k_filter_names[] = { "All", "Top 10", "Top 5", "Top 3" };
 static const char* k_sort_names[]   = { "Signal", "Recent", "ID", "Packets" };
-static const char* k_module_names[] = { "Auto", "Internal", "External" };
+static const char* k_module_names[] = { "Auto", "Internal", "External", "NanoCUL" };
 static const char* k_gps_sources[] = {
     "Off", "UART NEO-6M", "Phone bridge", "BT GPS bridge"
 };
