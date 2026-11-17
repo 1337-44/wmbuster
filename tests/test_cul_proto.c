@@ -46,7 +46,7 @@ int main(void) {
     assert(wmbus_cul_parse_line(invalid, data, sizeof(data), &n, &rssi) ==
            WmbusCulParseBad);
 
-    invalid[strlen(invalid) - 2] = 0; /* odd hex string */
+    invalid[strlen(invalid) - 1] = 0; /* odd hex string */
     assert(wmbus_cul_parse_line(invalid, data, sizeof(data), &n, &rssi) ==
            WmbusCulParseBad);
 
