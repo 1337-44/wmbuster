@@ -30,6 +30,7 @@ typedef enum {
     WmbusRadioInternal,
     WmbusRadioExternal,
     WmbusRadioNanoCul,
+    WmbusRadioCulNoReply,   /* LPUART opened; no mode ACK or valid frames */
     WmbusRadioUnavailable,
 } WmbusRadioState;
 WmbusRadioState wmbus_worker_radio_state(const WmbusWorker* w);
