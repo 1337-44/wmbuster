@@ -311,12 +311,13 @@ static int32_t cul_worker_thread(WmbusWorker* w) {
         default:
             break;
         }
-        /* Some culfw variants do not support brc. A serial handle alone
-         * doesn't prove that the NanoCUL actually entered wM-Bus receive. */
+        /* Port acquisition succeeded; a missing CUL reply is NOT
+         * an LPUART error. Some patched culfw variants omit mode ACK.
+         * Keep polling; a later ACK or CRC-valid frame clears the status. */
         if(!ready && (uint32_t)(furi_get_tick() - start) > 3000UL &&
            w->radio_state == WmbusRadioStarting) {
-            w->radio_state = WmbusRadioUnavailable;
-            FURI_LOG_W("WmbusWorker", "nanoCUL: no mode acknowledgement");
+            w->radio_state = WmbusRadioCulNoReply;
+            FURI_LOG_W("WmbusWorker", "NanoCUL LPUART open, no mode ACK/frame; check baud, wiring and receiver power");
         }
     }
     wmbus_cul_close(cul);
