@@ -31,7 +31,8 @@ import org.json.JSONObject;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -183,7 +184,8 @@ public final class NanoCulService extends Service implements LocationListener {
                 .withZone(ZoneOffset.UTC).format(Instant.now());
         File f=new File(logDir,"nanocul_"+stamp+".jsonl");
         synchronized(fileLock) {
-            writer=new BufferedWriter(new FileWriter(f, StandardCharsets.UTF_8,false));
+            writer=new BufferedWriter(new OutputStreamWriter(
+                    new FileOutputStream(f,false),StandardCharsets.UTF_8));
             logFilePath=f.getAbsolutePath();
         }
     }
