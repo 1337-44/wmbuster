@@ -147,13 +147,16 @@ public final class WmbusDecoder {
     }
     private static String formatDate(byte[] a,int p,int len,boolean dateTime){
         if(len < (dateTime?4:2)) return null;
-        int year=2000+((ub(a,p+1)>>5)&7)+((ub(a,p)>>5)&7)*8;
-        int month=ub(a,p+1)&15;
-        int day=ub(a,p)&31;
+        // EN13757 type G (2-byte date) or type F (4-byte date/time).
+        // Type F stores minute/hour in bytes 0/1, date bits in bytes 2/3.
+        int o=dateTime?2:0;
+        int d0=ub(a,p+o),d1=ub(a,p+o+1);
+        int year=2000+((d0>>5)&7)+(((d1>>4)&15)<<3);
+        int month=d1&15,day=d0&31;
         if(month<1 || month>12 || day<1 || day>31) return null;
         if(!dateTime) return String.format(java.util.Locale.ROOT,"%04d-%02d-%02d",year,month,day);
-        int minute=ub(a,p+2)&63;
-        int hour=ub(a,p+3)&31;
+        int minute=ub(a,p)&63;
+        int hour=ub(a,p+1)&31;
         if(minute>59 || hour>23) return null;
         return String.format(java.util.Locale.ROOT,"%04d-%02d-%02d %02d:%02d",year,month,day,hour,minute);
     }
