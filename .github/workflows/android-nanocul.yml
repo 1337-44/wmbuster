@@ -39,3 +39,19 @@ jobs:
           name: NanoCulLogger-debug-apk
           path: android/NanoCulLogger/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Package independent Android repository
+        run: |
+          mkdir -p /tmp/nanocul-repository
+          rsync -a --exclude='.gradle' --exclude='build' --exclude='.idea' \
+            android/NanoCulLogger/ /tmp/nanocul-repository/
+          mkdir -p /tmp/nanocul-repository/distribution
+          cp android/NanoCulLogger/app/build/outputs/apk/debug/app-debug.apk \
+            /tmp/nanocul-repository/distribution/NanoCUL_GPS_Logger_debug.apk
+          cd /tmp
+          zip -qr "${GITHUB_WORKSPACE}/NanoCUL_GPS_Logger_standalone.zip" nanocul-repository
+      - name: Upload independent project with APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NanoCUL-GPS-Logger-standalone
+          path: NanoCUL_GPS_Logger_standalone.zip
+          if-no-files-found: error
