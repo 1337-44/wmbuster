@@ -30,6 +30,8 @@ App(
         "protocol/wmbus_medium.c",
         "protocol/wmbus_aes.c",
         "subghz/wmbus_worker.c",
+        "subghz/wmbus_cul.c",
+        "subghz/wmbus_cul_proto.c",
         "subghz/wmbus_hal_rx.c",
         "subghz/wmbus_radio.c",
         # Driver engine — see drivers/CONTRIBUTING.md for the

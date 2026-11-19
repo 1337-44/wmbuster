@@ -1,0 +1,27 @@
+name: nanoCUL parser tests
+
+on:
+  push:
+    paths:
+      - 'subghz/wmbus_cul_proto.*'
+      - 'protocol/wmbus_crc.*'
+      - 'tests/test_cul_proto.c'
+      - '.github/workflows/nanocul-parser.yml'
+  pull_request:
+    paths:
+      - 'subghz/wmbus_cul_proto.*'
+      - 'protocol/wmbus_crc.*'
+      - 'tests/test_cul_proto.c'
+      - '.github/workflows/nanocul-parser.yml'
+
+jobs:
+  host-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test format A/B culfw parser
+        run: |
+          gcc -std=c11 -Wall -Wextra -Werror -I. \
+            tests/test_cul_proto.c subghz/wmbus_cul_proto.c \
+            protocol/wmbus_crc.c -o /tmp/test_cul
+          /tmp/test_cul

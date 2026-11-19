@@ -97,8 +97,19 @@ typedef enum {
     WmbusModuleAuto     = 0,    /* probe external first, fall back   */
     WmbusModuleInternal = 1,    /* force on-board CC1101             */
     WmbusModuleExternal = 2,    /* force GPIO-attached external      */
+    WmbusModuleNanoCul = 3,     /* culfw serial via LPUART 15/16       */
     WmbusModule_Count,
 } WmbusModuleSetting;
+
+/* An external ESP32 bridge maps phone position or Classic BT SPP NMEA
+ * onto the existing UART 9600-8N1 receiver. Flipper BLE cannot do SPP. */
+typedef enum {
+    WmbusGpsOff = 0,
+    WmbusGpsUart,
+    WmbusGpsPhoneBridge,
+    WmbusGpsBtBridge,
+    WmbusGpsSourceCount,
+} WmbusGpsSource;
 
 typedef struct {
     WmbusMode mode;
@@ -108,7 +119,8 @@ typedef struct {
     bool      sound_enabled;
     bool      vibration_enabled;
     bool      led_enabled;
-    bool      gps_enabled;
+    bool      gps_enabled; /* derived: gps_source != Off; used by logger */
+    WmbusGpsSource gps_source;
     bool      leak_enabled;
     uint8_t   leak_scope; /* 0=All meters, 1=Watched only */
     uint8_t   leak_window_index;
@@ -197,6 +209,8 @@ struct WmbusApp {
     bool               on_detail_view; /* redraw live Big display every tick */
     uint32_t           telegram_seq;   /* incremented per accepted telegram */
     uint32_t           last_shown_seq; /* what UI last drew */
+    uint8_t            last_shown_radio_state;
+    bool               radio_error_popup_shown;
 
     /* Cumulative count of every accepted telegram, regardless of whether
      * the meter row was retained or evicted from the bounded meters[]

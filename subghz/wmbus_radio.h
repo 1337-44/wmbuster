@@ -1,7 +1,7 @@
 #pragma once
-/* Thin wrapper around `subghz_devices_*` that picks the internal
- * CC1101 or a GPIO-attached external module and manages the OTG rail.
- * Falls back to the internal radio if the external module isn't found. */
+/* Thin wrapper around `subghz_devices_*` that chooses a CC1101 and
+ * manages the shared GPIO 5V rail. Auto alone may fall back internally.
+ * Explicit External returns NULL when the external radio is unavailable. */
 
 #include <lib/subghz/devices/devices.h>
 #include "../wmbus_app_i.h"
@@ -15,10 +15,10 @@ extern "C" {
  * Returns true if a working external CC1101 answers. */
 bool wmbus_radio_detect_external(void);
 
-/* Select the active radio.  Handles Auto / Internal / External:
- *   Auto     – probes external first, falls back to internal.
- *   Internal – always internal.
- *   External – attempts external, falls back to internal if absent. */
+/* Select active CC1101:
+ *   Auto     – probes external, falls back to internal if unavailable.
+ *   Internal – only internal.
+ *   External – only external, NULL on detection/initialization failure. */
 const SubGhzDevice* wmbus_radio_select(
     const SubGhzDevice* current,
     WmbusModuleSetting module);

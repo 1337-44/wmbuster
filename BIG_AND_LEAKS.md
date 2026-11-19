@@ -26,7 +26,7 @@ wM-Buster to toggle the display's backlight lock:
 
 - First long hold: **Always on** (screen does not automatically dim).
 - Next long hold: **Auto** (restores system display timeout).
-- Short OK is unchanged and still cycles Fields / Raw / Big in meter details.
+- Only **short OK** cycles Fields / Raw / Big. Long-press repeat events no longer change the view during backlight toggling.
 - **Default is Auto** on every app start; this choice is **not persisted**.
 - On leaving wM-Buster, the app releases any backlight lock it enabled.
 - Keeping the backlight on continuously draws more battery power.
@@ -40,11 +40,29 @@ Big display values update without leaving the meter details screen.
 The **full-width 128-pixel bar chart** represents positive water
 consumption **increments between received telegrams** (up to 24 readings),
 not total consumption or radio strength. The main m³ value appears in
-a rounded/shadowed frame; `L/h` and `L/min` share one line, derived
-from the same smoothed rate. Quantisation and irregular reception can
-still cause fluctuations.
-After 60 s without reception the display shows `No recent RX` rather
-than a misleading live rate.
+a rounded frame moved down by **2 LCD pixels**, with a rounded lower-right
+shadow. The L/h and L/min estimates share one line below it.
+
+At the upper right, instead of `OK fields`, BIG now displays the **mean
+time between consecutive decoded water-meter telegrams**, measured over
+up to 24 recent messages. Values look like `8 s`, `120 s`,
+`>999 s`; with fewer than two messages, `-- s` is shown.
+Rounding is to whole seconds.
+
+For intervals with **no new water use**, the bar chart displays a
+**one-pixel horizontal baseline at y=63**, so an idle but regularly
+transmitting meter is recognisable. The baseline appears only while the
+latest packet is no older than **1.5 times the observed mean interval**
+(e.g. 12 s for a typical 8-second cadence). Once reception is overdue,
+zero-value segments no longer display that line; positive historical
+bars remain visible. The same overdue state shows `No recent RX`
+instead of a misleading live rate. Without enough packets to estimate
+an interval, the baseline is withheld.
+
+Missing packets cannot distinguish RF reception problems from a stopped
+or temporarily silent transmitter; the graph is a reception indicator,
+not a radio diagnostic or a proof of zero water consumption.
+Quantisation and irregular reception can affect rate estimates.
 
 Big view is available for decoded **water** meters exposing `Now ... m3`
 or `Total ... m3`, including the IZAR and MK-Radio variants already
@@ -58,31 +76,41 @@ Settings >:
 | Setting | Available values | Default |
 |---|---|---|
 | Leak detect | Off / On | Off |
-| Leak window | 15, **30**, 60, 120 min | 30 min |
-| Leak minimum | **1**, 5, 10, 50 L | 1 L |
-| Leak scope | All / Watched | All |
+| Leak window | 15, 30, 60, **120** min | 120 min |
+| Leak minimum | 1, **5**, 10, 50 L | 5 L |
+| Leak scope | All / **Watched** | Watched |
 
 Values persist in `/ext/apps_data/wmbuster/settings.cfg`.
 Changing leak detection/window/minimum resets the **leak detection
 continuity** without erasing the short-term plot.
 
-This is a heuristic to identify **sustained, intermittent small increases
-over the chosen duration**, rather than report any one large draw as a leak:
+This is a deliberately **conservative heuristic** for long-lasting
+low-volume continuous consumption, not an alarm for any ordinary use.
+Earlier `1 L / 15 min` settings could signal normal household activity.
 
-- Minimum **three separate positive increases** are required.
-- They must span **at least the selected time window**.
-- Gaps between successive increases longer than **half the window**
-  (clamped between 2 and 15 minutes) break continuity.
-- The sum of positive increases must meet `Leak minimum`.
-- Meter rollovers/resets, implausible >10,000 L single jumps, and
-  prolonged reception outages reset continuity.
-- A confirmed detection displays `!LEAK!` in Big view.
-- With **Leak detect = On** and `Leak scope = All`, all supported
-  water meters are monitored. With `Leak scope = Watched`, only watched
-  water meters are monitored. A short double sound/vibration warning
-  fires on the initial suspected-leak transition.
-- With **Leak detect = Off**, BIG retains history but leak alarm
-  monitoring is disabled.
+- At least **6 separate positive meter increments**, seen in **all four
+  quarters** of the selected observation window and spanning its full length
+- **No more than 12 L/h mean flow** throughout the observation
+- Normal bursts (at least **5 L within a 5-minute activity block**) reset
+  the suspected-leak candidate, as do counter resets and abnormal jumps
+- No positive counter increment for over **a quarter of the window plus
+  two minutes** resets the candidate
+- **Radio reception gaps greater than two minutes** reset it; no
+  transmissions cannot be interpreted as zero consumption
+- A candidate must also exceed the configured `Leak minimum` litre value
+- Big view shows **`LEAK !!!`** for a suspected leak; with `Leak detect = On`,
+  this raises the short double sound/vibration warning once per detection
+- `Leak scope = Watched` checks only manually watched meters; `All`
+  evaluates every supported decoded water meter
+- `Leak detect = Off` disables warnings without disabling BIG history
+
+**Recommended starting configuration:** `Leak detect: On`,
+`Leak scope: Watched`, `Leak window: 120 min`, `Leak minimum: 5 L`.
+New installations default to that window/volume/scope, while actual
+detection stays OFF until enabled. On update, an older `version=1`
+configuration with exactly `15 min / 1 L` is automatically migrated to
+`120 min / 5 L`; all other previous window/volume choices are retained.
+New saves use `version=2`.
 
 **Limitations / caution:**
 
@@ -115,8 +143,9 @@ over the chosen duration**, rather than report any one large draw as a leak:
 6. Verify the default leak settings are OFF and configuration persists.
 7. Test the detector with **your own** controlled consumption, compare
    real meter increments across the selected window and test gaps/reset.
-8. Check that no alert occurs without at least 3 increases spanning the
-   whole window; verify that `Leak detect Off` is silent.
+8. Verify normal everyday usage, bursts, meter resets and radio interruptions
+   do not alert; verify the detector needs 6+ increases across all quarters
+   of the full observation window, and `Leak detect Off` stays silent.
 
 Host unit tests: `make -C tests test_water_history && ./tests/test_water_history`
 (or `make -C tests check` for all tests). They do not replace device tests.
